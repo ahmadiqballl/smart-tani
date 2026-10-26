@@ -46,6 +46,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_compass: ^0.8.1
   sensors_plus: ^7.1.1
+  sqflite_common_ffi: ^2.4.5
+  sqflite_common_ffi_web: ^1.2.0
 
 dev_dependencies:
   flutter_test:
