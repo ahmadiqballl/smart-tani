@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "77391661426",
+    "firebase_url": "https://smart-greenhouse-ad587-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "smart-greenhouse-ad587",
+    "storage_bucket": "smart-greenhouse-ad587.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77391661426:android:762218b3a5c0c421a2b5eb",
+        "android_client_info": {
+          "package_name": "com.tanigreen.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD69rOyf41PMUg9nWEU3_m5mSI7veKdIFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

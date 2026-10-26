@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // Naik ke versi 2 agar tabel baru otomatis ter-create
+      version: 3, // Naik ke versi 3: dukungan konfigurasi tanaman & jenis tanah
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onOpen: (db) async {
@@ -56,6 +56,20 @@ class DatabaseHelper {
       await _createRemainingTables(db);
       await _seedInitialVarietas(db);
     }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('ALTER TABLE greenhouse ADD COLUMN jenis_tanaman TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE greenhouse ADD COLUMN varietas TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE greenhouse ADD COLUMN jenis_tanah TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE greenhouse ADD COLUMN tanggal_tanam TEXT');
+      } catch (_) {}
+    }
   }
 
   /// Membuat 9 tabel sisanya sesuai Bagian 8 PRD (ERD) + sync_status (FR-03)
@@ -74,6 +88,10 @@ class DatabaseHelper {
         batas_suhu_maks REAL NOT NULL DEFAULT 35.0,
         batas_lembap_min REAL NOT NULL DEFAULT 40.0,
         status TEXT NOT NULL DEFAULT 'Normal',
+        jenis_tanaman TEXT,
+        varietas TEXT,
+        jenis_tanah TEXT,
+        tanggal_tanam TEXT,
         sync_status TEXT NOT NULL DEFAULT 'Menunggu Unggah'
       )
     ''');
@@ -364,6 +382,42 @@ class DatabaseHelper {
   Future<int> deleteGreenhouse(int id) async {
     final db = await instance.database;
     return await db.delete('greenhouse', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> updateGreenhousePlantConfig({
+    required int id,
+    required String jenisTanaman,
+    required String varietas,
+    required String jenisTanah,
+    required String tanggalTanam,
+  }) async {
+    final db = await instance.database;
+    return await db.update(
+      'greenhouse',
+      {
+        'jenis_tanaman': jenisTanaman,
+        'varietas': varietas,
+        'jenis_tanah': jenisTanah,
+        'tanggal_tanam': tanggalTanam,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> resetGreenhousePlantConfig(int id) async {
+    final db = await instance.database;
+    return await db.update(
+      'greenhouse',
+      {
+        'jenis_tanaman': null,
+        'varietas': null,
+        'jenis_tanah': null,
+        'tanggal_tanam': null,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   // ===========================================================================

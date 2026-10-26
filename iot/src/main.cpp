@@ -86,24 +86,31 @@ void loop() {
     return;
   }
 
-  // 1. Kirim Data ke Firebase Realtime Database
-  if (Firebase.setFloat(fbdo, "/greenhouse/suhu", temp)) {
-    Serial.print("Suhu terkirim: "); Serial.println(temp);
+  // 1. Kirim Data ke Firebase Realtime Database berdasarkan Device ID
+  String basePath = "/devices/" + String(DEVICE_ID);
+  
+  if (Firebase.setFloat(fbdo, basePath + "/suhu", temp)) {
+    Serial.print("[" + String(DEVICE_ID) + "] Suhu terkirim: "); Serial.println(temp);
   } else {
     Serial.print("Gagal kirim Suhu: "); Serial.println(fbdo.errorReason());
   }
 
-  if (Firebase.setFloat(fbdo, "/greenhouse/kelembapan", hum)) {
-    Serial.print("Kelembapan terkirim: "); Serial.println(hum);
+  if (Firebase.setFloat(fbdo, basePath + "/kelembapan", hum)) {
+    Serial.print("[" + String(DEVICE_ID) + "] Kelembapan terkirim: "); Serial.println(hum);
   } else {
     Serial.print("Gagal kirim Kelembapan: "); Serial.println(fbdo.errorReason());
   }
 
-  if (Firebase.setFloat(fbdo, "/greenhouse/cahaya", lux)) {
-    Serial.print("Cahaya terkirim: "); Serial.println(lux);
+  if (Firebase.setFloat(fbdo, basePath + "/cahaya", lux)) {
+    Serial.print("[" + String(DEVICE_ID) + "] Cahaya terkirim: "); Serial.println(lux);
   } else {
     Serial.print("Gagal kirim Cahaya: "); Serial.println(fbdo.errorReason());
   }
+
+  // Dukungan mundur ke path /greenhouse default
+  Firebase.setFloat(fbdo, "/greenhouse/suhu", temp);
+  Firebase.setFloat(fbdo, "/greenhouse/kelembapan", hum);
+  Firebase.setFloat(fbdo, "/greenhouse/cahaya", lux);
 
   // 2. Tampilkan Data di Layar OLED
   display.clearDisplay();
