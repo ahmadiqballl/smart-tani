@@ -1105,8 +1105,9 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                                     child: Text('Zona: London (UTC+0)')),
                               ],
                               onChanged: (val) {
-                                if (val != null)
+                                if (val != null) {
                                   setState(() => _selectedZone = val);
+                                }
                               },
                             ),
                           ),

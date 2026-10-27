@@ -290,10 +290,6 @@ class GreenhouseService {
     return null;
   }
 
-  /// Batas waktu (detik) sebelum data dianggap stale / IoT offline.
-  /// Firmware mengirim heartbeat setiap ~2 detik, jadi 20 detik adalah
-  /// toleransi yang aman untuk gangguan sesaat.
-  static const int _iotStaleThresholdSeconds = 20;
 
   /// Mengambil data telemetri live dari Firebase Realtime Database.
   /// Mengembalikan null jika IoT offline / data stale (heartbeat > 20 detik lalu).
