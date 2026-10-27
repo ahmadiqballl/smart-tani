@@ -78,8 +78,12 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
     _selectedPlantingDate = _currentGreenhouse.plantingDate ?? DateTime.now();
   }
 
+  int _offlineRetryCount = 0;
+  bool _isAutoDisconnecting = false;
+
   void _startIotPolling() {
     _iotTimer?.cancel();
+    _offlineRetryCount = 0;
     if (_currentGreenhouse.hasIotDevice) {
       _fetchIotData();
       _iotTimer = Timer.periodic(const Duration(seconds: 3), (_) {
@@ -91,14 +95,77 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
   }
 
   Future<void> _fetchIotData() async {
-    if (!_currentGreenhouse.hasIotDevice) return;
+    if (!_currentGreenhouse.hasIotDevice || _isAutoDisconnecting) return;
     try {
       final data = await _greenhouseService
           .fetchLiveIotTelemetry(_currentGreenhouse.iotDeviceId!);
-      if (mounted && data != null) {
-        setState(() => _iotData = data);
+      if (mounted) {
+        if (data != null) {
+          _offlineRetryCount = 0;
+          setState(() => _iotData = data);
+        } else {
+          _handleOfflineIot();
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) {
+        _handleOfflineIot();
+      }
+    }
+  }
+
+  void _handleOfflineIot() {
+    _offlineRetryCount++;
+    // Jika tidak dapat terhubung setelah 3 kali pengecekan berturut-turut (~9 detik), otomatis putus koneksi IoT
+    if (_offlineRetryCount >= 3 && !_isAutoDisconnecting) {
+      _autoDisconnectIot();
+    }
+  }
+
+  Future<void> _autoDisconnectIot() async {
+    if (_isAutoDisconnecting || _currentGreenhouse.id == null) return;
+    _isAutoDisconnecting = true;
+    _iotTimer?.cancel();
+
+    final oldDeviceId = _currentGreenhouse.iotDeviceId ?? 'IoT';
+
+    try {
+      await _greenhouseService.updateIotDevice(
+        id: _currentGreenhouse.id!,
+        iotDeviceId: '',
+      );
+      final updated = _currentGreenhouse.copyWith(clearIotDevice: true);
+      if (mounted) {
+        setState(() {
+          _currentGreenhouse = updated;
+          _iotData = null;
+          _offlineRetryCount = 0;
+          _isAutoDisconnecting = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppTheme.panelElevated,
+            duration: const Duration(seconds: 4),
+            content: Row(
+              children: [
+                const Icon(Icons.link_off_rounded, color: AppTheme.statusAlert),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Perangkat "$oldDeviceId" tidak merespons/offline. Koneksi IoT dinonaktifkan otomatis.',
+                    style: const TextStyle(color: AppTheme.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _isAutoDisconnecting = false;
+      debugPrint('[GreenhouseDetailPage] Auto-disconnect error: $e');
+    }
   }
 
   Future<void> _saveIotDevice(String deviceId) async {
@@ -247,6 +314,7 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
         setState(() {
           _currentGreenhouse = updated;
           _iotData = null;
+          _offlineRetryCount = 0;
           _isLoading = false;
         });
         _iotTimer?.cancel();
@@ -263,6 +331,80 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal memutuskan: $e'), backgroundColor: AppTheme.statusAlert),
         );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteGreenhouse() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.panelElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppTheme.statusAlert, size: 24),
+            SizedBox(width: 10),
+            Text('Hapus Greenhouse?', style: TextStyle(color: AppTheme.ink, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "${_currentGreenhouse.name}"?\n\nData greenhouse, konfigurasi budidaya, dan koneksi sensor IoT akan dihapus secara permanen.',
+          style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: AppTheme.inkTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.statusAlert,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && _currentGreenhouse.id != null) {
+      setState(() => _isLoading = true);
+      try {
+        _iotTimer?.cancel();
+        await _greenhouseService.deleteGreenhouse(_currentGreenhouse.id!);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppTheme.panelElevated,
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: AppTheme.statusOk),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Greenhouse "${_currentGreenhouse.name}" berhasil dihapus.',
+                      style: const TextStyle(color: AppTheme.ink),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus greenhouse: $e'),
+              backgroundColor: AppTheme.statusAlert,
+            ),
+          );
+        }
       }
     }
   }
@@ -662,6 +804,7 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
     final hasIot = _currentGreenhouse.hasIotDevice;
     final deviceId = _currentGreenhouse.iotDeviceId ?? '';
     final hasLiveData = _iotData != null;
+    final isOfflineDetected = hasIot && !hasLiveData && _offlineRetryCount > 0;
 
     return Container(
       width: double.infinity,
@@ -672,7 +815,11 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: hasIot
-              ? (hasLiveData ? AppTheme.statusOk.withValues(alpha: 0.4) : AppTheme.accent.withValues(alpha: 0.4))
+              ? (hasLiveData
+                  ? AppTheme.statusOk.withValues(alpha: 0.4)
+                  : (isOfflineDetected
+                      ? AppTheme.statusAlert.withValues(alpha: 0.5)
+                      : AppTheme.accent.withValues(alpha: 0.4)))
               : AppTheme.borderQuiet,
         ),
       ),
@@ -722,7 +869,9 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
                             decoration: BoxDecoration(
                               color: hasLiveData
                                   ? AppTheme.statusOk.withValues(alpha: 0.15)
-                                  : Colors.orange.withValues(alpha: 0.15),
+                                  : (isOfflineDetected
+                                      ? AppTheme.statusAlert.withValues(alpha: 0.15)
+                                      : Colors.orange.withValues(alpha: 0.15)),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
@@ -732,15 +881,19 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
                                   width: 6,
                                   height: 6,
                                   decoration: BoxDecoration(
-                                    color: hasLiveData ? AppTheme.statusOk : Colors.orange,
+                                    color: hasLiveData
+                                        ? AppTheme.statusOk
+                                        : (isOfflineDetected ? AppTheme.statusAlert : Colors.orange),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  hasLiveData ? 'ONLINE' : 'SYNC',
+                                  hasLiveData ? 'ONLINE' : (isOfflineDetected ? 'OFFLINE' : 'SYNC'),
                                   style: TextStyle(
-                                    color: hasLiveData ? AppTheme.statusOk : Colors.orange,
+                                    color: hasLiveData
+                                        ? AppTheme.statusOk
+                                        : (isOfflineDetected ? AppTheme.statusAlert : Colors.orange),
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -756,9 +909,13 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
                       hasIot
                           ? (hasLiveData
                               ? 'Sinkronisasi Realtime RTDB aktif (setiap 3 dtk)'
-                              : 'Menghubungkan ke Realtime Database...')
+                              : (isOfflineDetected
+                                  ? 'Perangkat tidak merespons — data stale terdeteksi'
+                                  : 'Menghubungkan ke Realtime Database...'))
                           : 'Hubungkan 1 modul ESP8266 untuk telemetri real-time',
-                      style: AppTheme.caption,
+                      style: isOfflineDetected
+                          ? AppTheme.caption.copyWith(color: AppTheme.statusAlert)
+                          : AppTheme.caption,
                     ),
                   ],
                 ),
@@ -998,24 +1155,26 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
         ),
         centerTitle: false,
         actions: [
-          if (hasConfig)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded, color: AppTheme.ink),
-              color: AppTheme.panelElevated,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onSelected: (val) {
-                if (val == 'edit') {
-                  setState(() {
-                    _populateControllers();
-                    _isEditing = true;
-                  });
-                } else if (val == 'reset') {
-                  _confirmReset();
-                } else if (val == 'iot') {
-                  _showIotConfigSheet();
-                }
-              },
-              itemBuilder: (ctx) => [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: AppTheme.ink),
+            color: AppTheme.panelElevated,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (val) {
+              if (val == 'edit') {
+                setState(() {
+                  _populateControllers();
+                  _isEditing = true;
+                });
+              } else if (val == 'reset') {
+                _confirmReset();
+              } else if (val == 'iot') {
+                _showIotConfigSheet();
+              } else if (val == 'delete') {
+                _confirmDeleteGreenhouse();
+              }
+            },
+            itemBuilder: (ctx) => [
+              if (hasConfig) ...[
                 const PopupMenuItem(
                   value: 'iot',
                   child: Row(
@@ -1040,14 +1199,26 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
                   value: 'reset',
                   child: Row(
                     children: [
-                      Icon(Icons.restart_alt_rounded, color: AppTheme.statusAlert, size: 18),
+                      Icon(Icons.restart_alt_rounded, color: Colors.orange, size: 18),
                       SizedBox(width: 10),
-                      Text('Reset Konfigurasi', style: TextStyle(color: AppTheme.statusAlert, fontSize: 13.5)),
+                      Text('Reset Konfigurasi', style: TextStyle(color: Colors.orange, fontSize: 13.5)),
                     ],
                   ),
                 ),
+                const PopupMenuDivider(),
               ],
-            ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline_rounded, color: AppTheme.statusAlert, size: 18),
+                    SizedBox(width: 10),
+                    Text('Hapus Greenhouse', style: TextStyle(color: AppTheme.statusAlert, fontSize: 13.5)),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(width: 8),
         ],
       ),
@@ -1143,6 +1314,11 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Hapus Greenhouse',
+            icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.statusAlert, size: 20),
+            onPressed: _confirmDeleteGreenhouse,
           ),
         ],
       ),

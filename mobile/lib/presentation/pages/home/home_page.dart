@@ -59,6 +59,76 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _confirmDeleteGreenhouse(GreenhouseModel gh) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.panelElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppTheme.statusAlert, size: 24),
+            SizedBox(width: 10),
+            Text('Hapus Greenhouse?', style: TextStyle(color: AppTheme.ink, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "${gh.name}"?\n\nData greenhouse, konfigurasi budidaya, dan sensor IoT akan dihapus permanen.',
+          style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: AppTheme.inkTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.statusAlert,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && gh.id != null) {
+      try {
+        await _greenhouseService.deleteGreenhouse(gh.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppTheme.panelElevated,
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: AppTheme.statusOk),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Greenhouse "${gh.name}" berhasil dihapus.',
+                      style: const TextStyle(color: AppTheme.ink),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+          _loadGreenhouses();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus greenhouse: $e'),
+              backgroundColor: AppTheme.statusAlert,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
@@ -558,6 +628,32 @@ class _HomePageState extends State<HomePage> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 4),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert_rounded, color: AppTheme.inkTertiary, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: AppTheme.panelElevated,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        onSelected: (val) {
+                          if (val == 'delete') {
+                            _confirmDeleteGreenhouse(gh);
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'delete',
+                            height: 36,
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline_rounded, color: AppTheme.statusAlert, size: 16),
+                                SizedBox(width: 8),
+                                Text('Hapus', style: TextStyle(color: AppTheme.statusAlert, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

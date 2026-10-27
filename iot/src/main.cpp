@@ -1,11 +1,17 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <Firebase.h>
+
+// WAJIB didefinisikan sebelum menyertakan header FirebaseESP8266.h
+#define ENABLE_FIREBASE_ESP8266
+#include <FirebaseESP8266.h>
+
 #include <Wire.h>
 #include <BH1750.h>
 #include <DHT.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+// ... sisanya kode setup() dan loop() kamu seperti biasa ...
 
 // ==========================================
 // 1. KONFIGURASI WIFI & FIREBASE
@@ -13,11 +19,16 @@
 #define WIFI_SSID "Auditorium"
 #define WIFI_PASSWORD "gloryglorymanunited"
 
-// URL Realtime Database (tanpa "https://" dan tanpa "/")
+// URL Realtime Database tanpa "https://" dan tanpa "/" di akhir
 #define FIREBASE_HOST "smart-greenhouse-ad587-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 // ==========================================
-// 2. KONFIGURASI HARDWARE
+// 2. KONFIGURASI DEVICE ID
+// ==========================================
+#define DEVICE_ID "GH_01"
+
+// =======================FL===================
+// 3. KONFIGURASI HARDWARE
 // ==========================================
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -30,8 +41,6 @@ BH1750 lightMeter;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
 
 void setup() {
   Serial.begin(115200);
@@ -65,12 +74,8 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // Inisialisasi Firebase (Mode Publik / Test Mode)
-  config.database_url = FIREBASE_HOST;
-  config.signer.test_mode = true;
-
+  Firebase.begin(FIREBASE_HOST, "");
   Firebase.reconnectWiFi(true);
-  fbdo.setBSSLBufferSize(4096, 1024);
-  Firebase.begin(&config, &auth);
 }
 
 void loop() {
@@ -86,38 +91,48 @@ void loop() {
     return;
   }
 
-  // 1. Kirim Data ke Firebase Realtime Database berdasarkan Device ID
-  String basePath = "/devices/" + String(DEVICE_ID);
-  
-  if (Firebase.setFloat(fbdo, basePath + "/suhu", temp)) {
-    Serial.print("[" + String(DEVICE_ID) + "] Suhu terkirim: "); Serial.println(temp);
+  bool wifiOk = (WiFi.status() == WL_CONNECTED);
+
+  if (wifiOk) {
+    String basePath = "/devices/" + String(DEVICE_ID);
+
+    // Kirim timestamp/heartbeat
+    Firebase.setInt(fbdo, basePath + "/last_seen_ms", (int)millis());
+
+    if (Firebase.setFloat(fbdo, basePath + "/suhu", temp)) {
+      Serial.print("[" + String(DEVICE_ID) + "] Suhu terkirim: "); Serial.println(temp);
+    } else {
+      Serial.print("Gagal kirim Suhu: "); Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.setFloat(fbdo, basePath + "/kelembapan", hum)) {
+      Serial.print("[" + String(DEVICE_ID) + "] Kelembapan terkirim: "); Serial.println(hum);
+    } else {
+      Serial.print("Gagal kirim Kelembapan: "); Serial.println(fbdo.errorReason());
+    }
+
+    if (Firebase.setFloat(fbdo, basePath + "/cahaya", lux)) {
+      Serial.print("[" + String(DEVICE_ID) + "] Cahaya terkirim: "); Serial.println(lux);
+    } else {
+      Serial.print("Gagal kirim Cahaya: "); Serial.println(fbdo.errorReason());
+    }
+
+    // Backup ke path /greenhouse default
+    Firebase.setFloat(fbdo, "/greenhouse/suhu", temp);
+    Firebase.setFloat(fbdo, "/greenhouse/kelembapan", hum);
+    Firebase.setFloat(fbdo, "/greenhouse/cahaya", lux);
+    Firebase.setInt(fbdo, "/greenhouse/last_seen_ms", (int)millis());
+
   } else {
-    Serial.print("Gagal kirim Suhu: "); Serial.println(fbdo.errorReason());
+    Serial.println("[WARN] WiFi tidak tersambung, data tidak dikirim.");
   }
 
-  if (Firebase.setFloat(fbdo, basePath + "/kelembapan", hum)) {
-    Serial.print("[" + String(DEVICE_ID) + "] Kelembapan terkirim: "); Serial.println(hum);
-  } else {
-    Serial.print("Gagal kirim Kelembapan: "); Serial.println(fbdo.errorReason());
-  }
-
-  if (Firebase.setFloat(fbdo, basePath + "/cahaya", lux)) {
-    Serial.print("[" + String(DEVICE_ID) + "] Cahaya terkirim: "); Serial.println(lux);
-  } else {
-    Serial.print("Gagal kirim Cahaya: "); Serial.println(fbdo.errorReason());
-  }
-
-  // Dukungan mundur ke path /greenhouse default
-  Firebase.setFloat(fbdo, "/greenhouse/suhu", temp);
-  Firebase.setFloat(fbdo, "/greenhouse/kelembapan", hum);
-  Firebase.setFloat(fbdo, "/greenhouse/cahaya", lux);
-
-  // 2. Tampilkan Data di Layar OLED
+  // Tampilkan Data di Layar OLED
   display.clearDisplay();
   
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println("GREENHOUSE (ONLINE)");
+  display.println(wifiOk ? "GREENHOUSE (ONLINE)" : "GREENHOUSE (OFFLINE)");
   display.println("---------------------");
 
   display.setCursor(0, 18);

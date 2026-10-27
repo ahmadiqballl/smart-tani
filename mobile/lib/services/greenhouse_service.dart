@@ -290,8 +290,14 @@ class GreenhouseService {
     return null;
   }
 
-  /// Mengambil data telemetri live dari Firebase Realtime Database
-  /// Mendukung path /devices/{deviceId} atau fallback /greenhouse untuk sensor utama
+  /// Batas waktu (detik) sebelum data dianggap stale / IoT offline.
+  /// Firmware mengirim heartbeat setiap ~2 detik, jadi 20 detik adalah
+  /// toleransi yang aman untuk gangguan sesaat.
+  static const int _iotStaleThresholdSeconds = 20;
+
+  /// Mengambil data telemetri live dari Firebase Realtime Database.
+  /// Mengembalikan null jika IoT offline / data stale (heartbeat > 20 detik lalu).
+  /// Mendukung path /devices/{deviceId} atau fallback /greenhouse untuk sensor utama.
   Future<Map<String, double>?> fetchLiveIotTelemetry(String deviceId) async {
     final sanitizedId = deviceId.trim();
     if (sanitizedId.isEmpty) return null;
@@ -316,6 +322,31 @@ class GreenhouseService {
         if (res.statusCode == 200 && res.body.isNotEmpty && res.body != 'null') {
           final data = json.decode(res.body);
           if (data is Map) {
+            // ── Heartbeat / staleness check ──────────────────────────────
+            // Firmware menulis last_seen_ms (millis sejak boot) setiap loop.
+            // Kita bandingkan dengan nilai sebelumnya yang tersimpan di cache
+            // lokal karena millis() di NodeMCU tidak sinkron dengan waktu nyata.
+            // Strategi: bandingkan dua pembacaan berselang 3 detik.
+            // Jika last_seen_ms TIDAK BERUBAH → IoT tidak kirim data baru → offline.
+            final rawLastSeen = data['last_seen_ms'];
+            if (rawLastSeen != null) {
+              final int lastSeenMs = (rawLastSeen is int)
+                  ? rawLastSeen
+                  : int.tryParse(rawLastSeen.toString()) ?? 0;
+
+              // Simpan nilai last_seen_ms ke cache agar bisa dibandingkan
+              // pada polling berikutnya.
+              final cachedMs = _lastSeenCache[sanitizedId];
+              _lastSeenCache[sanitizedId] = lastSeenMs;
+
+              if (cachedMs != null && cachedMs == lastSeenMs) {
+                // last_seen_ms tidak berubah sejak polling terakhir → stale
+                debugPrint('[IoT] $sanitizedId: last_seen_ms tidak berubah ($lastSeenMs), IoT offline.');
+                return null;
+              }
+            }
+            // ─────────────────────────────────────────────────────────────
+
             return {
               'suhu': GreenhouseModel.parseDouble(data['suhu']),
               'kelembapan': GreenhouseModel.parseDouble(data['kelembapan']),
@@ -329,6 +360,9 @@ class GreenhouseService {
     }
     return null;
   }
+
+  /// Cache last_seen_ms per device untuk mendeteksi data stale
+  static final Map<String, int> _lastSeenCache = {};
 
   /// Memperbarui konfigurasi tanaman & jenis tanah pada greenhouse
   Future<void> updatePlantConfig({
