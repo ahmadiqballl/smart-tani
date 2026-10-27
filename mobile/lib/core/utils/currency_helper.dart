@@ -45,11 +45,34 @@ class CurrencyHelper {
     return _rates;
   }
 
+  static double getRate(String targetCurrency) {
+    return _rates[targetCurrency] ?? 0.000064;
+  }
+
+  static double convertForeignToIdr(double foreignAmount, String currency) {
+    final rate = _rates[currency] ?? 0.000064;
+    if (rate <= 0) return foreignAmount * 15600;
+    return foreignAmount / rate;
+  }
+
   static String formatIdr(double amount) {
     return NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
       decimalDigits: 0,
+    ).format(amount);
+  }
+
+  static String formatForeign(double amount, String currency) {
+    final symbol = currency == 'USD'
+        ? '\$ '
+        : currency == 'EUR'
+            ? '€ '
+            : '£ ';
+    return NumberFormat.currency(
+      locale: 'en_US',
+      symbol: symbol,
+      decimalDigits: 2,
     ).format(amount);
   }
 

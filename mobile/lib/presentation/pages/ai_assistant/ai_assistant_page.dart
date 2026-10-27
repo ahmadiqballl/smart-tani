@@ -1,8 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:provider/provider.dart';
 import '../../../core/services/gemini_services.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/local_db/database_helper.dart';
+import '../../providers/auth_providers.dart';
 import '../../widgets/custom_sub_app_bar.dart';
+import '../game/edukasi_game_page.dart';
 
 class AiAssistantPage extends StatefulWidget {
   const AiAssistantPage({super.key});
@@ -15,20 +21,21 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final stt.SpeechToText _speech = stt.SpeechToText();
-  
+  final ImagePicker _picker = ImagePicker();
+
+  File? _selectedImage;
   bool _isListening = false;
   bool _speechAvailable = false;
+  bool _isLoading = false;
 
   final List<_ChatMessage> _messages = [
     const _ChatMessage(
-      text: 'Halo Petani! Saya Asisten Tani berbasis Google Gemini AI & Smart Agronomy Engine.\n'
-          'Tanyakan apa saja seputar diagnosis hama, daun menguning, jadwal pemupukan NPK, atau rekomendasi perawatan greenhouse Anda.',
+      text: 'Halo Petani! Saya Asisten Tani berbasis Google Gemini AI & Smart Agronomy Engine.\n\n'
+          'Anda bisa bertanya dengan mengetik, merekam suara 🎙️, atau melampirkan foto tanaman 📸 untuk diagnosa otomatis bercak daun, hama, atau nutrisi.',
       isBot: true,
       time: 'Asisten AI',
     ),
   ];
-  
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -44,7 +51,8 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             if (mounted) setState(() => _isListening = false);
           }
         },
-        onError: (_) {
+        onError: (err) {
+          debugPrint('STT error: $err');
           if (mounted) setState(() => _isListening = false);
         },
       );
@@ -53,33 +61,53 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     }
   }
 
+  /// Merekam Suara (Speech-To-Text Bahasa Indonesia)
   Future<void> _toggleVoiceRecording() async {
-    if (!_speechAvailable) {
-      await _initSpeechToText();
-    }
-
     if (_isListening) {
       await _speech.stop();
       if (mounted) setState(() => _isListening = false);
       return;
     }
 
+    if (!_speechAvailable) {
+      await _initSpeechToText();
+    }
+
     if (_speechAvailable) {
-      if (mounted) setState(() => _isListening = true);
-      await _speech.listen(
-        onResult: (result) {
-          if (mounted) {
-            setState(() {
-              _promptController.text = result.recognizedWords;
-            });
-          }
-        },
-      );
+      setState(() => _isListening = true);
+      try {
+        await _speech.listen(
+          onResult: (result) {
+            if (mounted) {
+              setState(() {
+                _promptController.text = result.recognizedWords;
+              });
+            }
+          },
+          listenOptions: stt.SpeechListenOptions(
+            listenFor: const Duration(seconds: 30),
+            pauseFor: const Duration(seconds: 3),
+            localeId: 'id_ID',
+          ),
+        );
+      } catch (e) {
+        debugPrint('Listen error: $e');
+        if (mounted) setState(() => _isListening = false);
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Izin mikrofon belum aktif atau fitur suara tidak tersedia.'),
+            content: Row(
+              children: [
+                Icon(Icons.mic_off_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('Layanan suara belum siap atau izin mikrofon belum aktif.'),
+                ),
+              ],
+            ),
+            backgroundColor: Color(0xFFE74C3C),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -87,13 +115,227 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     }
   }
 
+  /// Memilih Foto Tanaman dari Kamera atau Galeri
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengambil gambar: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Bottom Sheet Pilihan Sumber Foto
+  void _showImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.textGrey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Lampirkan Foto Tanaman untuk AI',
+                style: TextStyle(
+                  color: AppTheme.creamWhite,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'AI akan menganalisis visual daun, hama, atau buah',
+                style: TextStyle(color: AppTheme.textGrey, fontSize: 11.5),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.neonLime.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded, color: AppTheme.neonLime),
+                ),
+                title: const Text('Ambil Foto via Kamera', style: TextStyle(color: AppTheme.creamWhite, fontWeight: FontWeight.w700)),
+                subtitle: const Text('Foto daun atau hama langsung di greenhouse', style: TextStyle(color: AppTheme.textGrey, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Colors.amber),
+                ),
+                title: const Text('Pilih dari Galeri HP', style: TextStyle(color: AppTheme.creamWhite, fontWeight: FontWeight.w700)),
+                subtitle: const Text('Gunakan foto tanaman yang sudah tersimpan', style: TextStyle(color: AppTheme.textGrey, fontSize: 11)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTokenExhaustedDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: Colors.amber.withValues(alpha: 0.5)),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.token_rounded, color: Colors.amber, size: 26),
+            SizedBox(width: 10),
+            Text(
+              'Token Tani Habis!',
+              style: TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Anda memerlukan minimal 1 Token Tani untuk setiap pertanyaan konsultasi ke Asisten AI Gemini.',
+              style: TextStyle(color: AppTheme.creamWhite, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.darkForest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.sports_esports_rounded, color: AppTheme.neonLime, size: 22),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Dapatkan token gratis dengan bermain Game Panen Melon atau Kuis Agronomi!',
+                      style: TextStyle(color: AppTheme.pastelLime, fontSize: 11.5, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Nanti Saja', style: TextStyle(color: AppTheme.textGrey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EdukasiGamePage()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.neonLime,
+              foregroundColor: AppTheme.darkForest,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.sports_esports_rounded, size: 18),
+            label: const Text('Main Game & Raih Token', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _askGemini([String? customPrompt]) async {
-    final query = (customPrompt ?? _promptController.text).trim();
-    if (query.isEmpty || _isLoading) return;
+    String query = (customPrompt ?? _promptController.text).trim();
+    if (query.isEmpty && _selectedImage == null) return;
+    if (_isLoading) return;
+
+    if (query.isEmpty && _selectedImage != null) {
+      query = 'Tolong analisis foto tanaman ini: apakah ada indikasi hama, penyakit daun, atau kekurangan nutrisi? Berikan solusi penanganannya.';
+    }
+
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+    final tokenBalance = user?.saldoToken ?? 0;
+
+    // Cek saldo token (1 Token per pertanyaan)
+    if (tokenBalance < 1) {
+      _showTokenExhaustedDialog();
+      return;
+    }
 
     if (_isListening) {
       await _speech.stop();
       setState(() => _isListening = false);
+    }
+
+    // Kurangi 1 Token Tani untuk konsultasi AI
+    if (user?.id != null) {
+      await DatabaseHelper.instance.deductRewardToken(user!.id!, 1);
+      await auth.refreshUser();
+    }
+
+    final imageToSend = _selectedImage;
+    List<int>? imageBytes;
+    if (imageToSend != null) {
+      try {
+        imageBytes = await imageToSend.readAsBytes();
+      } catch (e) {
+        debugPrint('Failed to read image bytes: $e');
+      }
     }
 
     setState(() {
@@ -101,13 +343,18 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
         text: query,
         isBot: false,
         time: 'Anda',
+        imagePath: imageToSend?.path,
       ));
       _isLoading = true;
+      _selectedImage = null; // Clear attachment
     });
     _promptController.clear();
     _scrollToBottom();
 
-    final result = await GeminiService.getTaniAdvice(query);
+    final result = await GeminiService.getTaniAdvice(
+      query,
+      imageBytes: imageBytes,
+    );
 
     if (mounted) {
       setState(() {
@@ -154,27 +401,25 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
             children: [
               CustomSubAppBar(
                 title: 'Asisten Tani AI (FR-09)',
-                subtitle: 'Didukung Google Gemini & Agronomi Engine',
+                subtitle: 'Didukung Google Gemini Vision & Suara',
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: AppTheme.neonLime.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.neonLime.withValues(alpha: 0.4),
-                    ),
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_awesome, color: AppTheme.neonLime, size: 14),
-                      SizedBox(width: 4),
+                      const Icon(Icons.token_rounded, color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
                       Text(
-                        'Gemini AI',
-                        style: TextStyle(
-                          color: AppTheme.neonLime,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                        '${context.watch<AuthProvider>().currentUser?.saldoToken ?? 0} Token',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -219,7 +464,6 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                                   width: 1.1,
                                 )
                               : null,
-
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,6 +493,19 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                                 ),
                               ],
                             ),
+                            // Jika ada lampiran foto dari pengguna
+                            if (msg.imagePath != null) ...[
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(
+                                  File(msg.imagePath!),
+                                  width: double.infinity,
+                                  height: 180,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             SelectableText(
                               msg.text,
@@ -299,7 +556,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                             ),
                             SizedBox(width: 10),
                             Text(
-                              'Gemini AI sedang menganalisis...',
+                              'Gemini AI sedang menganalisis foto & pertanyaan...',
                               style: TextStyle(color: AppTheme.pastelLime, fontSize: 11),
                             ),
                           ],
@@ -312,27 +569,112 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
               // Listening Voice Status Indicator (FR-05)
               if (_isListening)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE74C3C).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE74C3C).withValues(alpha: 0.5)),
+                      color: const Color(0xFFE74C3C).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFF5252).withValues(alpha: 0.6)),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                    child: Row(
                       children: [
-                        Icon(Icons.mic_rounded, color: Color(0xFFFF5252), size: 16),
-                        SizedBox(width: 8),
-                        Text(
-                          'Mendengarkan suara Anda... (Bicara sekarang)',
-                          style: TextStyle(color: Color(0xFFFF8A80), fontSize: 11, fontWeight: FontWeight.w600),
+                        const Icon(Icons.mic_rounded, color: Color(0xFFFF5252), size: 18),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Mendengarkan suara Anda... (Bicara sekarang)',
+                            style: TextStyle(color: Color(0xFFFF8A80), fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            _speech.stop();
+                            setState(() => _isListening = false);
+                            _askGemini();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF5252),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            minimumSize: Size.zero,
+                          ),
+                          child: const Text('Kirim', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                         ),
                       ],
                     ),
                   ),
                 ),
+
+              // Preview Foto yang Terlampir
+              if (_selectedImage != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.darkForest,
+                    border: Border(
+                      top: BorderSide(color: AppTheme.emeraldGreen.withValues(alpha: 0.3)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.file(_selectedImage!, width: 48, height: 48, fit: BoxFit.cover),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Foto Tanaman Terlampir',
+                              style: TextStyle(color: AppTheme.neonLime, fontWeight: FontWeight.w800, fontSize: 12),
+                            ),
+                            Text(
+                              'AI akan menganalisis visual tanaman ini saat Anda kirim.',
+                              style: TextStyle(color: AppTheme.textGrey, fontSize: 10.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => _selectedImage = null),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                        tooltip: 'Hapus Foto',
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Info Biaya Token Tani
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.darkForest.withValues(alpha: 0.6),
+                  border: Border(
+                    top: BorderSide(color: AppTheme.emeraldGreen.withValues(alpha: 0.2)),
+                    bottom: BorderSide(color: AppTheme.emeraldGreen.withValues(alpha: 0.2)),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.token_rounded, color: Colors.amber, size: 14),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Biaya: 1 Token Tani / pertanyaan',
+                      style: TextStyle(color: AppTheme.pastelLime, fontSize: 11),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Sisa: ${context.watch<AuthProvider>().currentUser?.saldoToken ?? 0} Token',
+                      style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
 
               // Prompt Shortcut Chips
               SingleChildScrollView(
@@ -341,14 +683,14 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                 child: Row(
                   children: [
                     _buildPromptChip('Daun melon bercak kuning, solusinya apa?'),
-                    _buildPromptChip('Rekomendasi takaran pupuk AB Mix hidroponik'),
-                    _buildPromptChip('Cara mengatasi hama kutu kebul'),
+                    _buildPromptChip('Rekomendasi takaran pupuk AB Mix'),
+                    _buildPromptChip('Cara basmi hama kutu kebul'),
                     _buildPromptChip('Berapa pH ideal tanaman melon?'),
                   ],
                 ),
               ),
 
-              // Input Bar (Input Suara FR-05 & Teks FR-09)
+              // Input Bar (Kamera, Suara & Teks)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -361,6 +703,33 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                 ),
                 child: Row(
                   children: [
+                    // Tombol Kamera / Galeri Foto
+                    GestureDetector(
+                      onTap: _showImageSourceSheet,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _selectedImage != null
+                              ? AppTheme.neonLime
+                              : AppTheme.emeraldGreen.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _selectedImage != null
+                                ? AppTheme.neonLime
+                                : AppTheme.neonLime.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.camera_alt_rounded,
+                          color: _selectedImage != null
+                              ? AppTheme.darkForest
+                              : AppTheme.neonLime,
+                          size: 19,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
                     // Tombol Input Suara Mikrofon (FR-05)
                     GestureDetector(
                       onTap: _toggleVoiceRecording,
@@ -380,14 +749,16 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                         child: Icon(
                           _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
                           color: _isListening ? Colors.white : AppTheme.neonLime,
-                          size: 20,
+                          size: 19,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
+
+                    // Kolom Input Teks
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
                           color: AppTheme.inputFill,
                           borderRadius: BorderRadius.circular(22),
@@ -397,22 +768,26 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                         ),
                         child: TextField(
                           controller: _promptController,
-                          style: const TextStyle(color: AppTheme.creamWhite, fontSize: 13.5),
+                          style: const TextStyle(color: AppTheme.creamWhite, fontSize: 13),
                           cursorColor: AppTheme.neonLime,
-                          decoration: const InputDecoration(
-                            hintText: 'Tanyakan keluhan atau perawatan tanaman...',
-                            hintStyle: TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                          decoration: InputDecoration(
+                            hintText: _selectedImage != null
+                                ? 'Tanyakan foto ini (opsional)...'
+                                : 'Ketik atau rekam suara...',
+                            hintStyle: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
                             border: InputBorder.none,
                           ),
                           onSubmitted: (val) => _askGemini(),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
+
+                    // Tombol Kirim
                     GestureDetector(
                       onTap: _isLoading ? null : () => _askGemini(),
                       child: Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(11),
                         decoration: BoxDecoration(
                           color: _isLoading
                               ? AppTheme.textGrey.withValues(alpha: 0.3)
@@ -469,10 +844,12 @@ class _ChatMessage {
   final String text;
   final bool isBot;
   final String time;
+  final String? imagePath;
 
   const _ChatMessage({
     required this.text,
     required this.isBot,
     required this.time,
+    this.imagePath,
   });
 }

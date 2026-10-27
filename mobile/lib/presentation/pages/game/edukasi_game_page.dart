@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/local_db/database_helper.dart';
 import '../../providers/auth_providers.dart';
 import '../../widgets/custom_sub_app_bar.dart';
+import '../ai_assistant/ai_assistant_page.dart';
 
 class EdukasiGamePage extends StatefulWidget {
   const EdukasiGamePage({super.key});
@@ -205,13 +206,17 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
       isNewRecord = true;
     }
 
-    // Reward Token jika skor tinggi (>= 50)
-    int rewardTokenGiven = 0;
-    if (_score >= 50) {
-      rewardTokenGiven = (_score / 25).floor();
-      await DatabaseHelper.instance.addRewardToken(userId, rewardTokenGiven);
-      await auth.refreshUser();
+    // Reward Token setiap selesai main game (Minimal +2 Token Partisipasi)
+    int rewardTokenGiven = 2;
+    if (_score >= 120) {
+      rewardTokenGiven = 5;
+    } else if (_score >= 80) {
+      rewardTokenGiven = 4;
+    } else if (_score >= 40) {
+      rewardTokenGiven = 3;
     }
+    await DatabaseHelper.instance.addRewardToken(userId, rewardTokenGiven);
+    await auth.refreshUser();
 
     if (!mounted) return;
     setState(() {});
@@ -262,33 +267,41 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
               'Skor Tertinggi Lokal: $_highScore Poin',
               style: const TextStyle(color: AppTheme.pastelLime, fontSize: 13),
             ),
-            if (rewardTokenGiven > 0) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.token_rounded, color: Colors.amber, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Bonus Panen: +$rewardTokenGiven Token Tani (Tersimpan ke Saldo)',
-                        style: const TextStyle(
-                          color: Colors.amber,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.token_rounded, color: Colors.amber, size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '+$rewardTokenGiven Token Tani Diterima!',
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Gunakan token ini untuk bertanya seputar diagnosis hama & tanaman ke Asisten AI Gemini!',
+                    style: TextStyle(color: AppTheme.creamWhite, fontSize: 11),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
         actions: [
@@ -297,7 +310,23 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
               Navigator.pop(ctx);
               setState(() => _items.clear());
             },
-            child: const Text('Menu Utama', style: TextStyle(color: AppTheme.textGrey)),
+            child: const Text('Tutup', style: TextStyle(color: AppTheme.textGrey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AiAssistantPage()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: AppTheme.darkForest,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.auto_awesome, size: 16),
+            label: const Text('Tanya AI', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -495,15 +524,15 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
                   decoration: BoxDecoration(
                     color: Colors.amber.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 16),
+                      const Icon(Icons.token_rounded, color: Colors.amber, size: 16),
                       const SizedBox(width: 4),
                       Text(
-                        'Rekor: $_highScore',
+                        '${context.watch<AuthProvider>().currentUser?.saldoToken ?? 0} Token',
                         style: const TextStyle(
                           color: Colors.amber,
                           fontWeight: FontWeight.w800,
@@ -865,7 +894,31 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
         setState(() {
           _selectedOption = index;
           _quizAnswered = true;
-          if (isCorrect) _quizScore += 15;
+          if (isCorrect) {
+            _quizScore += 15;
+            final auth = context.read<AuthProvider>();
+            final userId = auth.currentUser?.id ?? 1;
+            DatabaseHelper.instance.addRewardToken(userId, 1).then((_) {
+              auth.refreshUser();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.token_rounded, color: Colors.amber, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Jawaban Benar! +1 Token Tani untuk konsultasi AI.',
+                      style: TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                backgroundColor: AppTheme.neonLime,
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         });
       },
       borderRadius: BorderRadius.circular(14),

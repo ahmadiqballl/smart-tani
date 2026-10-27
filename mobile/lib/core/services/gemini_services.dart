@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 class GeminiService {
   // Kunci cadangan jika belum disetel di .env
-  static const String _defaultApiKey = 'AQ.Ab8RN6JGH8UbeIcA9a1glVsn5QiQ8MfuHoFD4iARmzaZaSjbOQ';
+  static const String _defaultApiKey = 'AQ.Ab8RN6KluVT1oMUdht9wiifvBshOG2rBKh_vzI8V4rGCMU4UPQ';
 
   static String get apiKey {
     final envKey = dotenv.env['GEMINI_API_KEY'];
@@ -17,37 +17,37 @@ class GeminiService {
 
   /// FR-09: Mendapatkan konsultasi agronomi pintar dari Google Gemini AI
   /// Dilengkapi Adaptive Request (x-goog-api-key / Bearer) dan Smart Agronomy Engine Fallback
-  static Future<String> getTaniAdvice(String userPrompt) async {
+  static Future<String> getTaniAdvice(
+    String userPrompt, {
+    List<int>? imageBytes,
+    String? mimeType,
+  }) async {
     final key = apiKey;
 
-    // 1. Coba Request Langsung ke Google Gemini 1.5 Flash Endpoint
-    try {
-      final geminiResult = await _callGeminiRestApi(
-        apiKey: key,
-        prompt: userPrompt,
-        model: 'gemini-1.5-flash',
-      );
-      if (geminiResult != null && geminiResult.trim().isNotEmpty) {
-        return geminiResult;
+    // Daftar model Google Gemini multimodal yang terbukti aktif & kompatibel
+    final candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+    ];
+
+    for (final model in candidateModels) {
+      try {
+        final result = await _callGeminiRestApi(
+          apiKey: key,
+          prompt: userPrompt,
+          model: model,
+          imageBytes: imageBytes,
+          mimeType: mimeType,
+        );
+        if (result != null && result.trim().isNotEmpty) {
+          return result;
+        }
+      } catch (e) {
+        debugPrint('Gemini model $model error: $e');
       }
-    } catch (e) {
-      debugPrint('Gemini REST Call info: $e');
     }
 
-    // 2. Coba Alternatif Model gemini-1.5-pro jika 1.5-flash belum siap
-    try {
-      final proResult = await _callGeminiRestApi(
-        apiKey: key,
-        prompt: userPrompt,
-        model: 'gemini-1.5-pro',
-      );
-      if (proResult != null && proResult.trim().isNotEmpty) {
-        return proResult;
-      }
-    } catch (_) {}
-
-    // 3. Smart Agronomy Engine Fallback (Jaminan 100% Selalu Menjawab Ilmiah & Relevan)
-    // Berfungsi ketika API Key ditolak gateway Google, kuota habis, atau HP offline
+    // 4. Smart Agronomy Engine Fallback (Jaminan 100% Selalu Menjawab Ilmiah & Relevan saat offline)
     return _generateSmartAgronomyAdvice(userPrompt);
   }
 
@@ -56,30 +56,43 @@ class GeminiService {
     required String apiKey,
     required String prompt,
     required String model,
+    List<int>? imageBytes,
+    String? mimeType,
   }) async {
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent');
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+
+    final List<Map<String, dynamic>> parts = [
+      {
+        'text': 'Kamu adalah "Asisten Tani", AI ahli agronom dan pertanian cerdas untuk aplikasi TaniGreen (Smart Greenhouse). '
+            'Tugasmu adalah membantu petani mendiagnosis gejala hama, penyakit, defisiensi nutrisi tanaman (melon, tomat, selada, cabai), '
+            'dan menganalisis foto daun atau kondisi tanaman yang dikirimkan. '
+            'Berikan rekomendasi praktis, ramah dan terstruktur (maksimal 3-4 poin ringkas padat).\n\n'
+            'Pertanyaan Petani: $prompt',
+      }
+    ];
+
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      parts.add({
+        'inlineData': {
+          'mimeType': mimeType ?? 'image/jpeg',
+          'data': base64Encode(imageBytes),
+        }
+      });
+    }
 
     final body = jsonEncode({
       'contents': [
         {
           'role': 'user',
-          'parts': [
-            {
-              'text': 'Kamu adalah "Asisten Tani", AI ahli agronom dan pertanian cerdas untuk aplikasi TaniGreen (Smart Greenhouse). '
-                  'Tugasmu adalah membantu petani mendiagnosis gejala hama, penyakit, nutrisi tanaman (melon, tomat, selada, cabai), '
-                  'memberikan rekomendasi jadwal perawatan, dan panduan greenhouse secara ilmiah, praktis, ramah dan terstruktur.\n\n'
-                  'Pertanyaan Petani: $prompt',
-            }
-          ]
+          'parts': parts,
         }
       ],
       'generationConfig': {
-        'temperature': 0.7,
-        'maxOutputTokens': 800,
+        'temperature': 0.4,
+        'maxOutputTokens': 400,
       }
     });
 
-    // Percobaan A: Menggunakan header resmi x-goog-api-key
     try {
       final response = await http.post(
         url,
@@ -88,7 +101,7 @@ class GeminiService {
           'x-goog-api-key': apiKey,
         },
         body: body,
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 28));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -99,29 +112,12 @@ class GeminiService {
             return parts[0]['text'] as String?;
           }
         }
+      } else {
+        debugPrint('Gemini REST HTTP ${response.statusCode}: ${response.body}');
       }
-    } catch (_) {}
-
-    // Percobaan B: Menggunakan query param ?key=
-    try {
-      final urlWithKey = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
-      final response = await http.post(
-        urlWithKey,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      ).timeout(const Duration(seconds: 8));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final candidates = data['candidates'] as List?;
-        if (candidates != null && candidates.isNotEmpty) {
-          final parts = candidates[0]['content']?['parts'] as List?;
-          if (parts != null && parts.isNotEmpty) {
-            return parts[0]['text'] as String?;
-          }
-        }
-      }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Gemini call error: $e');
+    }
 
     return null;
   }

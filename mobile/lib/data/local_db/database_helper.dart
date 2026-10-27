@@ -343,6 +343,20 @@ class DatabaseHelper {
     );
   }
 
+  Future<bool> deductRewardToken(int userId, int amount) async {
+    final db = await instance.database;
+    final user = await getUserById(userId);
+    if (user == null || user.saldoToken < amount) return false;
+    final newBalance = user.saldoToken - amount;
+    await db.update(
+      'pengguna',
+      {'saldo_token': newBalance},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+    return true;
+  }
+
   Future<int> addRewardToken(int userId, int additionalTokens) async {
     final db = await instance.database;
     final user = await getUserById(userId);

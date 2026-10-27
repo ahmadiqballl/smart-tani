@@ -406,7 +406,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text(
-                                      'Saldo Token Reward (FR-13)',
+                                      'Saldo Token Reward Tani',
                                       style: TextStyle(
                                         color: AppTheme.textGrey,
                                         fontSize: 12,
@@ -419,6 +419,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                         color: Colors.amber,
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    const Text(
+                                      'Gunakan untuk konsultasi Asisten AI Gemini (1 Token / tanya)',
+                                      style: TextStyle(
+                                        color: AppTheme.pastelLime,
+                                        fontSize: 10.5,
                                       ),
                                     ),
                                   ],

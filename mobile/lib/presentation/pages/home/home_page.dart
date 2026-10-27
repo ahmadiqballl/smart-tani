@@ -8,6 +8,7 @@ import '../../widgets/smart_tani_logo.dart';
 import '../greenhouse/greenhouse_detail_page.dart';
 import '../greenhouse/greenhouse_map_page.dart';
 import '../iot/iot_monitor_page.dart';
+import '../iot/iot_monitoring_page.dart';
 import '../ai_assistant/ai_assistant_page.dart';
 import '../schedule/jadwal_tanam_page.dart';
 import '../variety_plant/varietas_tanaman_page.dart';
@@ -153,10 +154,6 @@ class _HomePageState extends State<HomePage> {
               // ── Fitur Baru: Daftar Unit Greenhouse (Maksimal 2, Expandable, Per-Greenhouse Config) ──
               _buildGreenhouseListSection(context),
               const SizedBox(height: 24),
-
-              // ── 2. Telemetri Lingkungan Mikro (Live Console) ──
-              _buildLiveTelemetry(context),
-              const SizedBox(height: 28),
 
               // ── 3. Operasi & Kontrol Lahan ──
               const Text(
@@ -745,164 +742,6 @@ class _HomePageState extends State<HomePage> {
     return '🌿';
   }
 
-  // ── Telemetri Lahan Real-Time ──
-  Widget _buildLiveTelemetry(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.panel,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppTheme.borderQuiet,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Greenhouse Utama',
-                      style: TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Blok Melon Inthanon • Fase Pembesaran',
-                      style: AppTheme.caption,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.panelElevated,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: AppTheme.borderQuiet,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.statusOk,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Optimal',
-                      style: TextStyle(
-                        color: AppTheme.statusOk,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-
-          // 3 Kolom Metrik Sensor Lahan
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricBlock(
-                  label: 'Suhu Udara',
-                  value: '26.8°C',
-                  subtext: 'Batas 24-28°C',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricBlock(
-                  label: 'Kelembapan',
-                  value: '76%',
-                  subtext: 'Batas 70-80%',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricBlock(
-                  label: 'pH Nutrisi',
-                  value: '6.4 pH',
-                  subtext: 'Ideal 6.0-6.8',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetricBlock({
-    required String label,
-    required String value,
-    required String subtext,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.panelElevated,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppTheme.borderQuiet,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AppTheme.caption,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppTheme.ink,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtext,
-            style: const TextStyle(
-              color: AppTheme.inkTertiary,
-              fontSize: 10.5,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Modul Operasi Presisi ──
   Widget _buildOperationsSection(BuildContext context) {
     return Column(
@@ -998,8 +837,8 @@ class _HomePageState extends State<HomePage> {
               child: _buildCompactCard(
                 context: context,
                 icon: Icons.verified_outlined,
-                title: 'Buku Rantai Pasok',
-                subtitle: 'Verifikasi SHA-256 panen',
+                title: 'Paspor Panen Digital',
+                subtitle: 'Sertifikat keterlacakan panen',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BlockchainPage()),
@@ -1020,6 +859,63 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => IotMonitoringPage(
+                greenhouse: const {
+                  'id': 1,
+                  'nama_greenhouse': 'Greenhouse Utama (A)',
+                  'biaya_operasional_idr': 1500000.0,
+                  'batas_suhu_maks': 35.0,
+                  'batas_lembap_min': 40.0,
+                },
+                userId: context.read<AuthProvider>().currentUser?.id ?? 1,
+              ),
+            ),
+          ),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.neonLime.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.public_rounded, color: AppTheme.neonLime, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kalkulator Valuasi & Potensi Ekspor (FR-06)',
+                        style: TextStyle(color: AppTheme.creamWhite, fontWeight: FontWeight.w800, fontSize: 13),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Simulasi nilai panen lokal vs ekspor (USD/EUR/GBP Live)',
+                        style: TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.textGrey, size: 14),
+              ],
+            ),
+          ),
         ),
       ],
     );
