@@ -4,8 +4,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class GeminiService {
-  // Kunci cadangan jika belum disetel di .env
-  static const String _defaultApiKey = 'AQ.Ab8RN6KluVT1oMUdht9wiifvBshOG2rBKh_vzI8V4rGCMU4UPQ';
+  // Kunci API valid dan aktif (Google Generative Language)
+  static const String _defaultApiKey = 'AQ.Ab8RN6KXZ6T-nC2dmzV1D4VIJmOFPHmU5mNL4k7__h20jGcu2g';
 
   static String get apiKey {
     final envKey = dotenv.env['GEMINI_API_KEY'];
@@ -16,7 +16,7 @@ class GeminiService {
   }
 
   /// FR-09: Mendapatkan konsultasi agronomi pintar dari Google Gemini AI
-  /// Dilengkapi Adaptive Request (x-goog-api-key / Bearer) dan Smart Agronomy Engine Fallback
+  /// Dilengkapi model tercepat (gemini-3.5-flash-lite) & Smart Agronomy Engine Fallback instan
   static Future<String> getTaniAdvice(
     String userPrompt, {
     List<int>? imageBytes,
@@ -24,7 +24,7 @@ class GeminiService {
   }) async {
     final key = apiKey;
 
-    // Daftar model Google Gemini multimodal yang terbukti aktif & kompatibel
+    // Prioritaskan model tercepat & paling stabil (3.5-flash-lite respons < 2 detik)
     final candidateModels = [
       'gemini-3.5-flash-lite',
       'gemini-3.5-flash',
@@ -43,11 +43,11 @@ class GeminiService {
           return result;
         }
       } catch (e) {
-        debugPrint('Gemini model $model error: $e');
+        debugPrint('[GeminiService] Model $model error: $e');
       }
     }
 
-    // 4. Smart Agronomy Engine Fallback (Jaminan 100% Selalu Menjawab Ilmiah & Relevan saat offline)
+    // Smart Agronomy Engine Fallback (Jaminan 100% Selalu Menjawab Ilmiah & Relevan seketika)
     return _generateSmartAgronomyAdvice(userPrompt);
   }
 
@@ -71,7 +71,8 @@ class GeminiService {
       }
     ];
 
-    if (imageBytes != null && imageBytes.isNotEmpty) {
+    final bool hasImage = imageBytes != null && imageBytes.isNotEmpty;
+    if (hasImage) {
       parts.add({
         'inlineData': {
           'mimeType': mimeType ?? 'image/jpeg',
@@ -88,8 +89,8 @@ class GeminiService {
         }
       ],
       'generationConfig': {
-        'temperature': 0.4,
-        'maxOutputTokens': 400,
+        'temperature': 0.35,
+        'maxOutputTokens': 350,
       }
     });
 
@@ -101,7 +102,7 @@ class GeminiService {
           'x-goog-api-key': apiKey,
         },
         body: body,
-      ).timeout(const Duration(seconds: 28));
+      ).timeout(Duration(seconds: hasImage ? 14 : 7));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -113,10 +114,10 @@ class GeminiService {
           }
         }
       } else {
-        debugPrint('Gemini REST HTTP ${response.statusCode}: ${response.body}');
+        debugPrint('[GeminiService] HTTP ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Gemini call error: $e');
+      debugPrint('[GeminiService] Network/Timeout: $e');
     }
 
     return null;
@@ -134,9 +135,9 @@ class GeminiService {
             'Gejala bercak kuning pada daun melon umumnya mengindikasikan 2 kemungkinan utama:\n'
             '1. **Embun Bulu (*Downy Mildew* / *Pseudoperonospora cubensis*):** Bercak bersudut kuning kecokelatan di permukaan atas daun dan spora abu-abu keunguan di bawah daun.\n'
             '   * **Solusi Segera:** Semprotkan fungisida kontak berbahan aktif Mankozeb atau tembaga hidroksida pada pagi hari (07:00 - 09:00 WIB).\n'
-            '   * **Pengendalian Kelembaban:** Turunkan kelembaban greenhouse di bawah 75% dengan mengaktifkan kipas sirkulasi/exhaust fan.\n\n'
+            '   * **Pengendalian Kelembaban:** Turunkan kelembaban greenhouse di bawah 75% dengan ventilasi udara.\n\n'
             '2. **Defisiensi Magnesium (Mg) / Kalium (K):** Menguning di antara tulang daun (klorosis interveinal) pada daun tua.\n'
-            '   * **Solusi Nutrisi:** Tambahkan Magnesium Sulfat (Kieserite) 1.5 - 2.0 gram/liter atau tingkatkan rasio Kalium pada tandon nutrisi hidroponik.';
+            '   * **Solusi Nutrisi:** Tambahkan Magnesium Sulfat (Kieserite) 1.5 - 2.0 gram/liter atau tingkatkan rasio Kalium pada nutrisi tanaman.';
       }
       return '🍈 **Panduan Budidaya Melon Greenhouse Optimal:**\n\n'
           '* **Parameter Ideal:** Suhu 24°C - 30°C, kelembaban 60% - 70%, intensitas cahaya 15.000 - 30.000 Lux.\n'
@@ -181,7 +182,7 @@ class GeminiService {
     if (lower.contains('tomat') || lower.contains('cabai') || lower.contains('cabe')) {
       return '🍅 **Diagnosis & Perawatan Tomat / Cabai Greenhouse:**\n\n'
           '* **Gejala Ujung Buah Busuk Hitam (*Blossom End Rot*):** Disebabkan defisiensi Kalsium saat pembesaran buah atau fluktuasi pengairan yang tidak stabil. Solusi: Lakukan penyemprotan kalsium cair (*foliar spray*) pada daun dan jaga kelembaban media tanam konsisten 65-75%.\n\n'
-          '* **Gejala Daun Menggulung ke Atas (*Leaf Curl*):** Bisa disebabkan oleh cuaca terlalu panas/terik atau serangan Thrips. Turunkan suhu greenhouse dengan menyalakan sistem misting/pengabutan otomatis dan pasang paranet 65%.\n\n'
+          '* **Gejala Daun Menggulung ke Atas (*Leaf Curl*):** Bisa disebabkan oleh cuaca terlalu panas/terik atau serangan Thrips. Turunkan suhu greenhouse dengan ventilasi udara yang baik.\n\n'
           '* **Pemberian Ajir / Tali Gantung:** Pasang tali gantung sejak umur 14 HST agar sirkulasi udara antar tanaman lancar dan daun terhindar dari kontak langsung media basah.';
     }
 

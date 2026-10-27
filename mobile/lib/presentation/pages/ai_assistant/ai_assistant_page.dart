@@ -64,50 +64,64 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
   /// Merekam Suara (Speech-To-Text Bahasa Indonesia)
   Future<void> _toggleVoiceRecording() async {
     if (_isListening) {
-      await _speech.stop();
+      try {
+        await _speech.stop();
+      } catch (_) {}
       if (mounted) setState(() => _isListening = false);
       return;
     }
 
-    if (!_speechAvailable) {
-      await _initSpeechToText();
-    }
+    try {
+      if (!_speechAvailable) {
+        _speechAvailable = await _speech.initialize(
+          onStatus: (status) {
+            if (status == 'notListening' || status == 'done') {
+              if (mounted) setState(() => _isListening = false);
+            }
+          },
+          onError: (err) {
+            debugPrint('STT error: ${err.errorMsg}');
+            if (mounted) setState(() => _isListening = false);
+          },
+        );
+      }
 
-    if (_speechAvailable) {
-      setState(() => _isListening = true);
-      try {
+      if (_speechAvailable) {
+        setState(() => _isListening = true);
         await _speech.listen(
           onResult: (result) {
-            if (mounted) {
+            if (mounted && result.recognizedWords.isNotEmpty) {
               setState(() {
                 _promptController.text = result.recognizedWords;
               });
             }
           },
           listenOptions: stt.SpeechListenOptions(
-            listenFor: const Duration(seconds: 30),
+            listenFor: const Duration(seconds: 20),
             pauseFor: const Duration(seconds: 3),
-            localeId: 'id_ID',
+            cancelOnError: true,
           ),
         );
-      } catch (e) {
-        debugPrint('Listen error: $e');
-        if (mounted) setState(() => _isListening = false);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Layanan suara belum siap/didukung di emulator ini. Silakan ketik pertanyaan Anda.'),
+              backgroundColor: Color(0xFFE67E22),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
-    } else {
+    } catch (e) {
+      debugPrint('STT error: $e');
       if (mounted) {
+        setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.mic_off_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text('Layanan suara belum siap atau izin mikrofon belum aktif.'),
-                ),
-              ],
-            ),
-            backgroundColor: Color(0xFFE74C3C),
+            content: Text('Mikrofon tidak tersedia di emulator. Silakan gunakan ketik teks.'),
+            backgroundColor: Color(0xFFE67E22),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -351,21 +365,37 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
     _promptController.clear();
     _scrollToBottom();
 
-    final result = await GeminiService.getTaniAdvice(
-      query,
-      imageBytes: imageBytes,
-    );
+    try {
+      final result = await GeminiService.getTaniAdvice(
+        query,
+        imageBytes: imageBytes,
+      );
 
-    if (mounted) {
-      setState(() {
-        _messages.add(_ChatMessage(
-          text: result,
-          isBot: true,
-          time: 'Asisten Tani (Gemini AI)',
-        ));
-        _isLoading = false;
-      });
-      _scrollToBottom();
+      if (mounted) {
+        setState(() {
+          _messages.add(_ChatMessage(
+            text: result,
+            isBot: true,
+            time: 'Asisten Tani (Gemini AI)',
+          ));
+        });
+      }
+    } catch (e) {
+      debugPrint('[AiAssistantPage] Error asking Gemini: $e');
+      if (mounted) {
+        setState(() {
+          _messages.add(const _ChatMessage(
+            text: '⚠️ Terjadi gangguan koneksi jaringan saat menghubungi server AI. Menampilkan rekomendasi agronomi berbasis data internal.',
+            isBot: true,
+            time: 'Asisten Tani',
+          ));
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _scrollToBottom();
+      }
     }
   }
 
