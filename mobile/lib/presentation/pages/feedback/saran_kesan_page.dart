@@ -74,7 +74,7 @@ class _SaranKesanPageState extends State<SaranKesanPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Terima kasih! Saran & kesan berhasil disimpan ke database SQLite (FR-05).',
+            'Terima kasih! Saran & kesan berhasil disimpan ke database.',
             style: TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.w600),
           ),
           backgroundColor: AppTheme.neonLime,
@@ -114,7 +114,7 @@ class _SaranKesanPageState extends State<SaranKesanPage> {
                           ),
                         ),
                         Text(
-                          'Mata Kuliah Pemrograman Aplikasi Mobile (FR-05)',
+                          'Mata Kuliah Pemrograman Aplikasi Mobile',
                           style: TextStyle(
                             color: AppTheme.pastelLime.withValues(alpha: 0.75),
                             fontSize: 11.5,

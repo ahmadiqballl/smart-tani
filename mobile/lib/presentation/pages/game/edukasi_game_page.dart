@@ -39,9 +39,7 @@ class FallingItem {
 
 class _EdukasiGamePageState extends State<EdukasiGamePage>
     with SingleTickerProviderStateMixin {
-  int _activeTab = 0; // 0: Game Panen Melon (FR-10), 1: Kuis Agronomi
-
-  // ΓöÇΓöÇ GAME STATE ΓöÇΓöÇ
+  // ── GAME STATE ──
   bool _isPlaying = false;
   int _score = 0;
   int _highScore = 0;
@@ -51,11 +49,6 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
   Timer? _gameLoopTimer;
   Timer? _spawnTimer;
   final Random _random = Random();
-
-  // ΓöÇΓöÇ KUIS STATE ΓöÇΓöÇ
-  int _quizScore = 50;
-  int? _selectedOption;
-  bool _quizAnswered = false;
 
   @override
   void initState() {
@@ -382,15 +375,29 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
                 width: 90,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppTheme.accent,
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF2ECC71),
+                      AppTheme.neonLime,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.neonLime, width: 2),
-
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.neonLime.withValues(alpha: 0.6),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shopping_basket_rounded, color: AppTheme.darkForest, size: 24),
+                    Icon(Icons.shopping_basket_rounded, color: AppTheme.darkForest, size: 22),
                     SizedBox(width: 4),
                     Text(
                       'PANEN',
@@ -432,49 +439,70 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.65),
+                    color: Colors.black.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '≡ƒìê PANEN MELON 2D',
-                          style: TextStyle(
-                            color: AppTheme.neonLime,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 30),
-                          child: Text(
-                            'Geser keranjang untuk menangkap buah melon matang & hindari serangan hama ulat/belalang!',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppTheme.creamWhite, fontSize: 13),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: _startGame,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.neonLime,
-                            foregroundColor: AppTheme.darkForest,
-                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              '🍈 PANEN MELON 2D',
+                              style: TextStyle(
+                                color: AppTheme.neonLime,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                          label: const Text(
-                            'MULAI PANEN',
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                          ),
+                            const SizedBox(height: 8),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'Geser keranjang untuk menangkap buah melon matang & hindari serangan hama ulat/belalang!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: AppTheme.creamWhite, fontSize: 12.5),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Panduan Objek Jatuh (Badge Legend)
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                _buildLegendBadge('🍈', '+10 Poin', AppTheme.neonLime),
+                                _buildLegendBadge('🍈', '+25 Emas', Colors.amber),
+                                _buildLegendBadge('🧪', '+Nyawa', const Color(0xFF00E5FF)),
+                                _buildLegendBadge('🐛', 'Bahaya', const Color(0xFFFF4D6D)),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+
+                            ElevatedButton.icon(
+                              onPressed: _startGame,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.neonLime,
+                                foregroundColor: AppTheme.darkForest,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                                elevation: 6,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded, size: 26),
+                              label: const Text(
+                                'MULAI PANEN',
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -485,24 +513,329 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
     );
   }
 
+  Widget _buildLegendBadge(String emoji, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildItemWidget(FallingItemType type) {
     switch (type) {
       case FallingItemType.melonHijau:
-        return const Text('≡ƒìê', style: TextStyle(fontSize: 32));
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(-0.2, -0.3),
+              radius: 0.9,
+              colors: [
+                Color(0xFF2EC4B6),
+                Color(0xFF1B4332),
+                Color(0xFF0D2818),
+              ],
+            ),
+            border: Border.all(
+              color: AppTheme.neonLime,
+              width: 1.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.neonLime.withValues(alpha: 0.5),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 4,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text('🍈', style: TextStyle(fontSize: 22)),
+              Positioned(
+                bottom: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: AppTheme.darkForest.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppTheme.neonLime.withValues(alpha: 0.6), width: 0.6),
+                  ),
+                  child: const Text(
+                    '+10',
+                    style: TextStyle(
+                      color: AppTheme.neonLime,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
       case FallingItemType.melonEmas:
         return Container(
-          decoration: const BoxDecoration(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-
+            gradient: const RadialGradient(
+              center: Alignment(-0.2, -0.3),
+              radius: 0.95,
+              colors: [
+                Color(0xFFFFF9A6),
+                Color(0xFFFFD700),
+                Color(0xFFB8860B),
+                Color(0xFF7A4A00),
+              ],
+            ),
+            border: Border.all(
+              color: const Color(0xFFFFF176),
+              width: 2.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amberAccent.withValues(alpha: 0.85),
+                blurRadius: 14,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          child: const Text('≡ƒìê', style: TextStyle(fontSize: 34)),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text('🍈', style: TextStyle(fontSize: 23)),
+              Positioned(
+                bottom: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF422100).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFFD700), width: 0.8),
+                  ),
+                  child: const Text(
+                    '+25 ★',
+                    style: TextStyle(
+                      color: Color(0xFFFFD700),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
-      case FallingItemType.hamaUlat:
-        return const Text('≡ƒÉ¢', style: TextStyle(fontSize: 30));
-      case FallingItemType.hamaBelalang:
-        return const Text('≡ƒªù', style: TextStyle(fontSize: 30));
+
       case FallingItemType.nutrisi:
-        return const Text('≡ƒº¬', style: TextStyle(fontSize: 28));
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(-0.2, -0.3),
+              radius: 0.9,
+              colors: [
+                Color(0xFF70E000),
+                Color(0xFF00B4D8),
+                Color(0xFF003049),
+              ],
+            ),
+            border: Border.all(
+              color: const Color(0xFF48CAE4),
+              width: 1.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 4,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text('🧪', style: TextStyle(fontSize: 21)),
+              Positioned(
+                bottom: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF002233).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF48CAE4), width: 0.6),
+                  ),
+                  child: const Text(
+                    '+♥ 15',
+                    style: TextStyle(
+                      color: Color(0xFF90E0EF),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case FallingItemType.hamaUlat:
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(-0.2, -0.3),
+              radius: 0.9,
+              colors: [
+                Color(0xFFFF5964),
+                Color(0xFFBA181B),
+                Color(0xFF4A0E17),
+              ],
+            ),
+            border: Border.all(
+              color: const Color(0xFFFF4D6D),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF0054).withValues(alpha: 0.6),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 4,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text('🐛', style: TextStyle(fontSize: 22)),
+              Positioned(
+                bottom: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B0004).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFF4D6D), width: 0.6),
+                  ),
+                  child: const Text(
+                    '-1 ♥',
+                    style: TextStyle(
+                      color: Color(0xFFFF758F),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case FallingItemType.hamaBelalang:
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(-0.2, -0.3),
+              radius: 0.9,
+              colors: [
+                Color(0xFFFF9F1C),
+                Color(0xFFD90429),
+                Color(0xFF480CA8),
+              ],
+            ),
+            border: Border.all(
+              color: const Color(0xFFFF9E00),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF9100).withValues(alpha: 0.65),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 4,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text('🦗', style: TextStyle(fontSize: 22)),
+              Positioned(
+                bottom: 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A0800).withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFF9E00), width: 0.6),
+                  ),
+                  child: const Text(
+                    '-1 ♥',
+                    style: TextStyle(
+                      color: Color(0xFFFFB703),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
     }
   }
 
@@ -518,7 +851,7 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
             children: [
               CustomSubAppBar(
                 title: 'Mini Game & Edukasi',
-                subtitle: 'Game 2D Panen Melon (FR-10) & Kuis Agronomi',
+                subtitle: 'Game 2D Panen Melon',
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
@@ -544,91 +877,9 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
                 ),
               ),
 
-              // Tab Selector (Game 2D vs Kuis Agronomi)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardSurface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppTheme.emeraldGreen.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            if (_activeTab != 0) setState(() => _activeTab = 0);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _activeTab == 0
-                                  ? AppTheme.neonLime
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Panen Melon 2D (FR-10)',
-                                style: TextStyle(
-                                  color: _activeTab == 0
-                                      ? AppTheme.darkForest
-                                      : AppTheme.textGrey,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            if (_activeTab != 1) {
-                              _gameLoopTimer?.cancel();
-                              _spawnTimer?.cancel();
-                              setState(() {
-                                _isPlaying = false;
-                                _activeTab = 1;
-                              });
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _activeTab == 1
-                                  ? AppTheme.neonLime
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Kuis Agronomi',
-                                style: TextStyle(
-                                  color: _activeTab == 1
-                                      ? AppTheme.darkForest
-                                      : AppTheme.textGrey,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Content Tab
+              // Game 2D Content
               Expanded(
-                child: _activeTab == 0 ? _buildGameTab() : _buildQuizTab(),
+                child: _buildGameTab(),
               ),
             ],
           ),
@@ -752,194 +1003,6 @@ class _EdukasiGamePageState extends State<EdukasiGamePage>
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQuizTab() {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.cardSurface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.neonLime.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.school_rounded, color: AppTheme.neonLime, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Kuis Budidaya Melon',
-                            style: TextStyle(
-                              color: AppTheme.creamWhite,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppTheme.neonLime.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Skor: $_quizScore',
-                              style: const TextStyle(
-                                color: AppTheme.neonLime,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Jawab pertanyaan agronomi untuk memperdalam pemahaman greenhouse.',
-                        style: TextStyle(color: AppTheme.textGrey, fontSize: 11.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Pertanyaan Kuis
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppTheme.cardSurface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Pertanyaan #1',
-                  style: TextStyle(
-                    color: AppTheme.neonLime,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Berapakah rentang pH air nutrisi hidroponik yang paling optimal bagi pertumbuhan tanaman melon di greenhouse?',
-                  style: TextStyle(
-                    color: AppTheme.creamWhite,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildQuizOption(0, 'A. pH 4.0 - 4.8'),
-                const SizedBox(height: 10),
-                _buildQuizOption(1, 'B. pH 5.8 - 6.5 (Ideal)'),
-                const SizedBox(height: 10),
-                _buildQuizOption(2, 'C. pH 7.5 - 8.5'),
-                const SizedBox(height: 10),
-                _buildQuizOption(3, 'D. pH 9.0 ke atas'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuizOption(int index, String text) {
-    final isSelected = _selectedOption == index;
-    final isCorrect = index == 1;
-
-    Color borderColor = AppTheme.emeraldGreen.withValues(alpha: 0.3);
-    Color bgColor = AppTheme.darkForest;
-
-    if (_quizAnswered) {
-      if (isCorrect) {
-        borderColor = AppTheme.neonLime;
-        bgColor = AppTheme.neonLime.withValues(alpha: 0.15);
-      } else if (isSelected) {
-        borderColor = const Color(0xFFE74C3C);
-        bgColor = const Color(0xFFE74C3C).withValues(alpha: 0.15);
-      }
-    }
-
-    return InkWell(
-      onTap: () {
-        if (_quizAnswered) return;
-        setState(() {
-          _selectedOption = index;
-          _quizAnswered = true;
-          if (isCorrect) {
-            _quizScore += 15;
-            final auth = context.read<AuthProvider>();
-            final userId = auth.currentUser?.id ?? 1;
-            DatabaseHelper.instance.addRewardToken(userId, 1).then((_) {
-              auth.refreshUser();
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Row(
-                  children: [
-                    Icon(Icons.token_rounded, color: Colors.amber, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Jawaban Benar! +1 Token Tani untuk konsultasi AI.',
-                      style: TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                backgroundColor: AppTheme.neonLime,
-                duration: Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        });
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor, width: isSelected ? 1.5 : 1),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: _quizAnswered && isCorrect
-                ? AppTheme.neonLime
-                : AppTheme.creamWhite,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
       ),
     );
   }

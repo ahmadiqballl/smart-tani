@@ -22,7 +22,7 @@ class FruitRecommendation {
 
 class IotRecommendation {
   final String namaPerangkat;
-  final String tipe; // Sensor / Aktuator / Kontroler
+  final String tipe; // Sensor / Perangkat Kontrol / Kontroler
   final String spesifikasi;
   final String fungsiUtama;
   final String nilaiIdeal;
@@ -121,7 +121,7 @@ class RecommendationHelper {
     return list;
   }
 
-  /// Rekomendasi Perangkat Sensor & Aktuator IoT Sesuai Standar Smart Greenhouse
+  /// Rekomendasi Perangkat Sensor & Kontrol Otomasi IoT Sesuai Standar Smart Greenhouse
   static List<IotRecommendation> getIotRecommendations() {
     return const [
       IotRecommendation(
@@ -147,14 +147,14 @@ class RecommendationHelper {
       ),
       IotRecommendation(
         namaPerangkat: 'Smart Drip Irrigation Kit (Solenoid + Pompa DC)',
-        tipe: 'Aktuator Otomasi',
+        tipe: 'Perangkat Otomasi',
         spesifikasi: '12V DC Pump, manifold 4 cabang dengan dripper 2L/jam',
         fungsiUtama: 'Menyalurkan air nutrisi AB Mix tepat ke zona perakaran secara terprogram.',
         nilaiIdeal: 'Frekuensi 4 - 6 kali sehari (durasi 2-3 menit)',
       ),
       IotRecommendation(
         namaPerangkat: 'Exhaust Fan & High Pressure Misting System',
-        tipe: 'Aktuator Iklim',
+        tipe: 'Perangkat Iklim',
         spesifikasi: 'Relay ESP32 4-Channel + Nozzle embun 0.2mm anti-drip',
         fungsiUtama: 'Menurunkan suhu greenhouse secara cepat saat terik siang hari.',
         nilaiIdeal: 'Aktif otomatis jika suhu sensor > 32°C',

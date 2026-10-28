@@ -470,7 +470,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             Expanded(
                               child: Text(
                                 isSignUp
-                                    ? 'Diamankan dengan Salt Hash SHA-256 Offline (FR-01)'
+                                    ? 'Diamankan dengan Salt Hash SHA-256 Offline'
                                     : 'Koneksi lokal terenkripsi & aman',
                                 style: const TextStyle(
                                   color: AppTheme.textGrey,

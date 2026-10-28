@@ -60,7 +60,7 @@ class _VarietasTanamanPageState extends State<VarietasTanamanPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Tambah Varietas Baru (FR-03)',
+                    'Tambah Varietas Baru',
                     style: TextStyle(
                       color: AppTheme.creamWhite,
                       fontWeight: FontWeight.w800,
@@ -165,7 +165,7 @@ class _VarietasTanamanPageState extends State<VarietasTanamanPage> {
             children: [
               CustomSubAppBar(
                 title: 'Varietas Tanaman',
-                subtitle: 'Katalog Bibit Unggul & Riset Melon (FR-03, FR-09)',
+                subtitle: 'Katalog Bibit Unggul & Riset Melon',
                 trailing: GestureDetector(
                   onTap: _showAddVarietasDialog,
                   child: Container(

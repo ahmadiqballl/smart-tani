@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/services/gemini_services.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../data/local_db/database_helper.dart';
+import '../../../models/greenhouse_model.dart';
 import '../../widgets/custom_sub_app_bar.dart';
 
 enum ScheduleSortOption {
@@ -12,17 +14,24 @@ enum ScheduleSortOption {
 }
 
 class JadwalTanamPage extends StatefulWidget {
-  const JadwalTanamPage({super.key});
+  final GreenhouseModel? greenhouse;
+  final Map<String, double>? iotData;
+
+  const JadwalTanamPage({
+    super.key,
+    this.greenhouse,
+    this.iotData,
+  });
 
   @override
   State<JadwalTanamPage> createState() => _JadwalTanamPageState();
 }
 
 class _JadwalTanamPageState extends State<JadwalTanamPage> {
-  int _selectedFilter =
-      0; // 0: Semua, 1: Hari Ini, 2: Belum Selesai, 3: Selesai
+  int _selectedFilter = 0; // 0: Semua, 1: Hari Ini, 2: Belum Selesai, 3: Selesai
   ScheduleSortOption _currentSort = ScheduleSortOption.timeAsc;
   bool _isLoading = true;
+  bool _isGeneratingAi = false;
   List<Map<String, dynamic>> _schedules = [];
 
   @override
@@ -34,7 +43,15 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
   Future<void> _loadSchedulesFromDB() async {
     setState(() => _isLoading = true);
     try {
-      final list = await DatabaseHelper.instance.getAllJadwalList();
+      List<Map<String, dynamic>> list;
+      if (widget.greenhouse != null) {
+        list = await DatabaseHelper.instance.getJadwalList(
+          greenhouseId: widget.greenhouse!.id,
+          greenhouseName: widget.greenhouse!.name,
+        );
+      } else {
+        list = await DatabaseHelper.instance.getAllJadwalList();
+      }
       if (mounted) {
         setState(() {
           _schedules = List<Map<String, dynamic>>.from(list);
@@ -44,6 +61,170 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _generateAiWeeklySchedule() async {
+    if (_isGeneratingAi) return;
+
+    final gh = widget.greenhouse;
+    final ghName = (gh != null && gh.name.trim().isNotEmpty) ? gh.name.trim() : 'Greenhouse Utama';
+    final plantType = (gh != null && gh.plantType != null && gh.plantType!.trim().isNotEmpty)
+        ? gh.plantType!.trim()
+        : 'Melon';
+    final plantVariety = (gh != null && gh.plantVariety != null && gh.plantVariety!.trim().isNotEmpty)
+        ? gh.plantVariety!.trim()
+        : 'Golden Emerald';
+    final soilType = (gh != null && gh.soilType != null && gh.soilType!.trim().isNotEmpty)
+        ? gh.soilType!.trim()
+        : 'Media Cocopeat & Sekam';
+    int? hst;
+    if (gh?.plantingDate != null) {
+      hst = DateTime.now().difference(gh!.plantingDate!).inDays;
+      if (hst < 0) hst = 0;
+    }
+    final iot = widget.iotData;
+
+    setState(() => _isGeneratingAi = true);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.darkForest,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Gemini AI sedang menyusun jadwal 7 hari untuk $plantType ($plantVariety)...',
+                style: const TextStyle(
+                  color: AppTheme.darkForest,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.neonLime,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final weeklyTasks = await GeminiService.generateWeeklyScheduleWithAi(
+        plantType: plantType,
+        plantVariety: plantVariety,
+        soilType: soilType,
+        hst: hst,
+        iotData: iot,
+        greenhouseName: ghName,
+      );
+
+      if (weeklyTasks.isEmpty) {
+        throw Exception('Tidak ada respon kegiatan dari AI.');
+      }
+
+      // Bersihkan jadwal lama untuk greenhouse ini agar tidak duplikat
+      await DatabaseHelper.instance.clearJadwalForGreenhouse(
+        greenhouseId: gh?.id,
+        greenhouseName: ghName,
+      );
+
+      final now = DateTime.now();
+      int insertedCount = 0;
+
+      for (int i = 0; i < weeklyTasks.length; i++) {
+        final task = weeklyTasks[i];
+        final dayOffset = (task['hari'] is int)
+            ? (task['hari'] as int) - 1
+            : i;
+        final targetDate = now.add(Duration(days: dayOffset.clamp(0, 30)));
+
+        int hour = 8;
+        int minute = 0;
+        final jamStr = task['jam'] as String? ?? '08:00';
+        final parts = jamStr.split(':');
+        if (parts.length >= 2) {
+          hour = int.tryParse(parts[0].replaceAll(RegExp(r'[^0-9]'), '')) ?? 8;
+          minute = int.tryParse(parts[1].replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        }
+
+        final scheduleTime = DateTime(
+          targetDate.year,
+          targetDate.month,
+          targetDate.day,
+          hour,
+          minute,
+        );
+
+        final taskTitle = task['kegiatan'] as String? ?? 'Perawatan Tanaman';
+        final priority = task['prioritas'] as String? ?? 'Terjadwal';
+        final note = task['catatan'] as String? ?? '';
+
+        final newId = await DatabaseHelper.instance.insertJadwal({
+          'greenhouse_id': gh?.id,
+          'tanaman_id': 1,
+          'jenis_perawatan': taskTitle,
+          'waktu_utc': scheduleTime.toUtc().toIso8601String(),
+          'status': priority,
+          'catatan': '$ghName • $plantType ($plantVariety) • $note',
+          'sync_status': 'Menunggu Unggah',
+        });
+
+        // Pasang notifikasi pengingat H-30 menit otomatis
+        try {
+          await NotificationService.instance.schedulePlantReminderNotification(
+            id: newId,
+            title: '🌱 Jadwal: $taskTitle ($ghName)',
+            body: 'Pengingat H-30 Menit: Waktunya $taskTitle untuk $plantType di $ghName.',
+            scheduledDate: scheduleTime,
+          );
+        } catch (e) {
+          debugPrint('Error scheduling notification for task $newId: $e');
+        }
+
+        insertedCount++;
+      }
+
+      await _loadSchedulesFromDB();
+
+      if (mounted) {
+        setState(() => _isGeneratingAi = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Berhasil! $insertedCount jadwal perawatan 7 hari disusun otomatis oleh Gemini AI.',
+              style: const TextStyle(
+                color: AppTheme.darkForest,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            backgroundColor: AppTheme.neonLime,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[JadwalTanamPage] Error generating AI schedule: $e');
+      if (mounted) {
+        setState(() => _isGeneratingAi = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuat jadwal otomatis: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -272,8 +453,9 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
   }
 
   void _showAddScheduleBottomSheet() {
+    final defaultLocation = widget.greenhouse?.name ?? 'Greenhouse A';
     final titleCtrl = TextEditingController();
-    final locationCtrl = TextEditingController();
+    final locationCtrl = TextEditingController(text: defaultLocation);
     DateTime selectedDate = DateTime.now().add(const Duration(hours: 1));
     TimeOfDay selectedTime = TimeOfDay.fromDateTime(selectedDate);
     String selectedPriority = 'Prioritas';
@@ -335,7 +517,7 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Pengingat alarm otomatis akan dikirim ke status bar HP saat waktu tiba.',
+                  'Pengingat popup alarm otomatis akan dikirim H-30 menit sebelum waktu tiba.',
                   style: TextStyle(
                     color: AppTheme.pastelLime.withValues(alpha: 0.8),
                     fontSize: 11.5,
@@ -534,11 +716,12 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                       );
 
                       final location = locationCtrl.text.trim().isEmpty
-                          ? 'Greenhouse A'
+                          ? defaultLocation
                           : locationCtrl.text.trim();
 
                       // 1. Simpan ke database lokal SQLite
                       final newId = await DatabaseHelper.instance.insertJadwal({
+                        'greenhouse_id': widget.greenhouse?.id,
                         'tanaman_id': 1,
                         'jenis_perawatan': title,
                         'waktu_utc': finalDateTime.toUtc().toIso8601String(),
@@ -547,7 +730,7 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                         'sync_status': 'Menunggu Unggah',
                       });
 
-                      // 2. Jadwalkan Notifikasi Pengingat Otomatis
+                      // 2. Jadwalkan Notifikasi Pengingat Otomatis (Termasuk H-30 Menit)
                       await NotificationService.instance
                           .schedulePlantReminderNotification(
                         id: newId,
@@ -563,7 +746,7 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                       messenger.showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Jadwal perawatan berhasil disimpan & pengingat dipasang.',
+                            'Jadwal perawatan berhasil disimpan & pengingat H-30 menit dipasang.',
                             style: TextStyle(color: AppTheme.darkForest),
                           ),
                           backgroundColor: AppTheme.neonLime,
@@ -593,6 +776,115 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
     );
   }
 
+  Widget _buildEmptyState() {
+    final gh = widget.greenhouse;
+    final ghName = gh?.name ?? 'Greenhouse';
+    final plantInfo = (gh?.plantType != null && gh!.plantType!.isNotEmpty)
+        ? '${gh.plantType} (${gh.plantVariety ?? 'Varietas'})'
+        : 'tanaman greenhouse';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppTheme.neonLime.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.neonLime.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                size: 46,
+                color: AppTheme.neonLime,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Belum Ada Jadwal Perawatan',
+              style: TextStyle(
+                color: AppTheme.creamWhite,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Jadwal untuk $ghName masih kosong. Tekan tombol di bawah untuk menyusun jadwal perawatan 7 hari otomatis menggunakan Gemini AI sesuai kondisi $plantInfo dan telemetri sensor IoT.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.textGrey.withValues(alpha: 0.9),
+                fontSize: 12.5,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _isGeneratingAi ? null : _generateAiWeeklySchedule,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.neonLime,
+                  foregroundColor: AppTheme.darkForest,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: _isGeneratingAi
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.darkForest,
+                        ),
+                      )
+                    : const Icon(Icons.bolt_rounded, size: 22),
+                label: Text(
+                  _isGeneratingAi
+                      ? 'Sedang Menyusun Jadwal...'
+                      : '⚡ Otomatisasi Jadwal 7 Hari (Gemini AI)',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _showAddScheduleBottomSheet,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.creamWhite,
+                side: BorderSide(
+                  color: AppTheme.emeraldGreen.withValues(alpha: 0.5),
+                ),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 11),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text(
+                'Tambah Jadwal Manual',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = _filteredAndSortedSchedules;
@@ -607,10 +899,61 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
             children: [
               CustomSubAppBar(
                 title: 'Jadwal Tanam',
-                subtitle: 'Kalender Perawatan & Siklus Panen Lahan',
+                subtitle: widget.greenhouse != null
+                    ? '${widget.greenhouse!.name} • Perawatan & Panen'
+                    : 'Kalender Perawatan & Siklus Panen Lahan',
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Tombol Otomatisasi AI Cepat di Header
+                    GestureDetector(
+                      onTap: _isGeneratingAi ? null : _generateAiWeeklySchedule,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: AppTheme.neonLime,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.neonLime.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _isGeneratingAi
+                                ? const SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.darkForest,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: AppTheme.darkForest,
+                                    size: 15,
+                                  ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _isGeneratingAi ? 'AI...' : 'AI 7 Hari',
+                              style: const TextStyle(
+                                color: AppTheme.darkForest,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
                     // Tombol Sorting
                     GestureDetector(
                       onTap: _showSortMenu,
@@ -626,7 +969,7 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                         child: const Icon(
                           Icons.sort_rounded,
                           color: AppTheme.neonLime,
-                          size: 20,
+                          size: 19,
                         ),
                       ),
                     ),
@@ -662,28 +1005,7 @@ class _JadwalTanamPageState extends State<JadwalTanamPage> {
                             CircularProgressIndicator(color: AppTheme.neonLime),
                       )
                     : list.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.event_available_rounded,
-                                  size: 54,
-                                  color:
-                                      AppTheme.textGrey.withValues(alpha: 0.4),
-                                ),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  'Tidak ada jadwal tanam yang cocok',
-                                  style: TextStyle(
-                                    color: AppTheme.textGrey,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
+                        ? _buildEmptyState()
                         : ListView.builder(
                             physics: const BouncingScrollPhysics(),
                             padding: const EdgeInsets.symmetric(

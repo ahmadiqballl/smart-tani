@@ -176,7 +176,7 @@ class _PencarianPageState extends State<PencarianPage> {
             children: [
               const CustomSubAppBar(
                 title: 'Pencarian & Filter',
-                subtitle: 'Greenhouse, Varietas Melon, & Status Perawatan (FR-11)',
+                subtitle: 'Greenhouse, Varietas Melon, & Status Perawatan',
               ),
 
               // Search Box

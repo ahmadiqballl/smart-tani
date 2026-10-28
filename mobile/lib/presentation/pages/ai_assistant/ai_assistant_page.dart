@@ -277,7 +277,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Dapatkan token gratis dengan bermain Game Panen Melon atau Kuis Agronomi!',
+                      'Dapatkan token gratis dengan bermain Game Panen Melon 2D!',
                       style: TextStyle(color: AppTheme.pastelLime, fontSize: 11.5, height: 1.3),
                     ),
                   ),
@@ -430,7 +430,7 @@ class _AiAssistantPageState extends State<AiAssistantPage> {
           child: Column(
             children: [
               CustomSubAppBar(
-                title: 'Asisten Tani AI (FR-09)',
+                title: 'Asisten Tani AI',
                 subtitle: 'Didukung Google Gemini Vision & Suara',
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

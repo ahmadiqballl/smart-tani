@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/user_model.dart';
@@ -20,10 +21,26 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3, // Naik ke versi 3: dukungan konfigurasi tanaman & jenis tanah
+      version: 4, // Versi 4: dukungan kolom greenhouse_id pada jadwal_perawatan
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       onOpen: (db) async {
+        try {
+          await db.execute('ALTER TABLE greenhouse ADD COLUMN jenis_tanaman TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE greenhouse ADD COLUMN varietas TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE greenhouse ADD COLUMN jenis_tanah TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE greenhouse ADD COLUMN tanggal_tanam TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
+        } catch (_) {}
+
         await _seedInitialVarietas(db);
         await _seedInitialJadwal(db);
       },
@@ -68,6 +85,14 @@ class DatabaseHelper {
       } catch (_) {}
       try {
         await db.execute('ALTER TABLE greenhouse ADD COLUMN tanggal_tanam TEXT');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
+      } catch (_) {}
+    }
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
       } catch (_) {}
     }
   }
@@ -142,7 +167,8 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS jadwal_perawatan (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tanaman_id INTEGER NOT NULL,
+        tanaman_id INTEGER NOT NULL DEFAULT 1,
+        greenhouse_id TEXT,
         jenis_perawatan TEXT NOT NULL,
         waktu_utc TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'Terjadwal',
@@ -249,52 +275,7 @@ class DatabaseHelper {
 
   /// Data awal master jadwal perawatan
   Future<void> _seedInitialJadwal(Database db) async {
-    try {
-      final count = Sqflite.firstIntValue(
-        await db.rawQuery('SELECT COUNT(*) FROM jadwal_perawatan'),
-      ) ?? 0;
-      if (count == 0) {
-        final now = DateTime.now();
-        final initialSchedules = [
-          {
-            'tanaman_id': 1,
-            'jenis_perawatan': 'Pemupukan NPK Cair AB Mix',
-            'waktu_utc': now.add(const Duration(hours: 2)).toUtc().toIso8601String(),
-            'status': 'Prioritas',
-            'catatan': 'Greenhouse A • Tomat Hidroponik',
-            'sync_status': 'Tersinkron',
-          },
-          {
-            'tanaman_id': 2,
-            'jenis_perawatan': 'Pengecekan pH & EC Tandon Nutrisi',
-            'waktu_utc': now.add(const Duration(hours: 6)).toUtc().toIso8601String(),
-            'status': 'Terjadwal',
-            'catatan': 'Greenhouse B • Selada Romaine',
-            'sync_status': 'Tersinkron',
-          },
-          {
-            'tanaman_id': 1,
-            'jenis_perawatan': 'Pemangkasan Tunas Air (Pruning)',
-            'waktu_utc': now.add(const Duration(days: 1)).toUtc().toIso8601String(),
-            'status': 'Mendatang',
-            'catatan': 'Greenhouse A • Melon Golden',
-            'sync_status': 'Tersinkron',
-          },
-          {
-            'tanaman_id': 3,
-            'jenis_perawatan': 'Panen Raya Perdana Batch #2',
-            'waktu_utc': now.add(const Duration(days: 3)).toUtc().toIso8601String(),
-            'status': 'Panen',
-            'catatan': 'Greenhouse C • Cabai Rawit',
-            'sync_status': 'Tersinkron',
-          },
-        ];
-
-        for (var item in initialSchedules) {
-          await db.insert('jadwal_perawatan', item);
-        }
-      }
-    } catch (_) {}
+    // Default jadwal kosong sesuai instruksi user (tanpa data dummy awal)
   }
 
   // ===========================================================================
@@ -517,7 +498,16 @@ class DatabaseHelper {
   // ===========================================================================
   Future<int> insertJadwal(Map<String, dynamic> row) async {
     final db = await instance.database;
-    return await db.insert('jadwal_perawatan', row);
+    try {
+      await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
+    } catch (_) {}
+    try {
+      return await db.insert('jadwal_perawatan', row);
+    } catch (e) {
+      final safeRow = Map<String, dynamic>.from(row);
+      safeRow.remove('greenhouse_id');
+      return await db.insert('jadwal_perawatan', safeRow);
+    }
   }
 
   Future<List<Map<String, dynamic>>> getJadwalByUser(int userId) async {
@@ -560,6 +550,83 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  /// Membersihkan data dummy jadwal awal jika sebelumnya pernah di-seed
+  Future<void> clearDummySchedules() async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        'jadwal_perawatan',
+        where: "catatan LIKE '%Greenhouse A • Tomat Hidroponik%' OR catatan LIKE '%Greenhouse B • Selada Romaine%' OR catatan LIKE '%Panen Raya Perdana Batch #2%'",
+      );
+    } catch (_) {}
+  }
+
+  /// Mengambil daftar jadwal yang difilter khusus untuk greenhouse tertentu
+  Future<List<Map<String, dynamic>>> getJadwalList({
+    String? greenhouseId,
+    String? greenhouseName,
+  }) async {
+    final db = await instance.database;
+    try {
+      await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
+    } catch (_) {}
+    await clearDummySchedules();
+
+    if (greenhouseName != null && greenhouseName.trim().isNotEmpty) {
+      final name = greenhouseName.trim();
+      try {
+        return await db.rawQuery('''
+          SELECT j.*, 
+                 COALESCE(g.nama_greenhouse, '$name') AS nama_greenhouse,
+                 COALESCE(v.nama_varietas, 'Varietas') AS nama_varietas
+          FROM jadwal_perawatan j
+          LEFT JOIN tanaman t ON j.tanaman_id = t.id
+          LEFT JOIN greenhouse g ON t.greenhouse_id = g.id
+          LEFT JOIN varietas v ON t.varietas_id = v.id
+          WHERE j.catatan LIKE ? OR j.catatan LIKE ?
+          ORDER BY j.waktu_utc ASC
+        ''', ['%$name%', '$name%']);
+      } catch (e) {
+        debugPrint('[DatabaseHelper] Error in getJadwalList query: $e');
+      }
+    }
+
+    return await getAllJadwalList();
+  }
+
+  /// Menghapus seluruh jadwal yang terkait dengan greenhouse tertentu
+  Future<int> clearJadwalForGreenhouse({
+    String? greenhouseId,
+    String? greenhouseName,
+  }) async {
+    final db = await instance.database;
+    try {
+      await db.execute('ALTER TABLE jadwal_perawatan ADD COLUMN greenhouse_id TEXT');
+    } catch (_) {}
+
+    try {
+      if (greenhouseName != null && greenhouseName.trim().isNotEmpty) {
+        final name = greenhouseName.trim();
+        return await db.delete(
+          'jadwal_perawatan',
+          where: "catatan LIKE ? OR catatan LIKE ?",
+          whereArgs: ['%$name%', '$name%'],
+        );
+      }
+      if (greenhouseId != null && greenhouseId.trim().isNotEmpty) {
+        return await db.delete(
+          'jadwal_perawatan',
+          where: 'greenhouse_id = ?',
+          whereArgs: [greenhouseId.trim()],
+        );
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('[DatabaseHelper] Error clearJadwalForGreenhouse: $e');
+      return 0;
+    }
   }
 
   // ===========================================================================

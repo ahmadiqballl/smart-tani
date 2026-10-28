@@ -6,7 +6,6 @@ import '../../../services/greenhouse_service.dart';
 import '../../providers/auth_providers.dart';
 import '../../widgets/smart_tani_logo.dart';
 import '../greenhouse/greenhouse_detail_page.dart';
-import '../greenhouse/greenhouse_map_page.dart';
 import '../iot/iot_monitor_page.dart';
 import '../iot/iot_monitoring_page.dart';
 import '../ai_assistant/ai_assistant_page.dart';
@@ -162,7 +161,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Alat presisi pemantauan lapangan, kalender perawatan, dan aktuator.',
+                'Alat presisi pemantauan lapangan, kalender perawatan, dan kontrol perangkat.',
                 style: AppTheme.bodyMuted,
               ),
               const SizedBox(height: 14),
@@ -748,18 +747,6 @@ class _HomePageState extends State<HomePage> {
       children: [
         _buildActionTile(
           context: context,
-          icon: Icons.explore_outlined,
-          title: 'Pemetaan Greenhouse & Kompas',
-          description: 'Streaming live GPS lahan dan orientasi kompas hardware ke unit greenhouse.',
-          badgeText: 'GPS & Sensor',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GreenhouseMapPage()),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _buildActionTile(
-          context: context,
           icon: Icons.event_note_outlined,
           title: 'Jadwal Perawatan & Notifikasi',
           description: 'Pengingat otomatis pemupukan NPK, irigasi, dan kalender rotasi panen.',
@@ -773,9 +760,9 @@ class _HomePageState extends State<HomePage> {
         _buildActionTile(
           context: context,
           icon: Icons.sensors_outlined,
-          title: 'Telemetri & Aktuator IoT',
-          description: 'Status instrumen aktuator, pompa irigasi otomatis, dan mist blower.',
-          badgeText: 'Aktuator',
+          title: 'Telemetri & Kontrol Perangkat IoT',
+          description: 'Status instrumen perangkat, pompa irigasi otomatis, dan mist blower.',
+          badgeText: 'Kontrol IoT',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const IoTMonitorPage()),
@@ -851,7 +838,7 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 icon: Icons.sports_esports_outlined,
                 title: 'Simulasi Edukasi',
-                subtitle: 'Gamifikasi panen & kuis',
+                subtitle: 'Gamifikasi panen melon 2D',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const EdukasiGamePage()),
@@ -901,7 +888,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Kalkulator Valuasi & Potensi Ekspor (FR-06)',
+                        'Kalkulator Valuasi & Potensi Ekspor',
                         style: TextStyle(color: AppTheme.creamWhite, fontWeight: FontWeight.w800, fontSize: 13),
                       ),
                       SizedBox(height: 2),

@@ -51,6 +51,334 @@ class GeminiService {
     return _generateSmartAgronomyAdvice(userPrompt);
   }
 
+  /// FR-09: Rekomendasi Agronomi Spesifik per-Greenhouse dari Google Gemini AI
+  /// Menghasilkan panduan presisi berbasis 3 input: Jenis Tanaman, Varietas, dan Media Tanam / Tanah
+  static Future<String> getGreenhouseAgronomyAdvice({
+    required String plantType,
+    required String plantVariety,
+    required String soilType,
+    int? hst,
+  }) async {
+    final hstText = hst != null ? '- Umur Tanaman: Hari ke-$hst (HST)\n' : '';
+    final prompt = 'Kamu adalah Asisten Agronomi Cerdas TaniGreen (Smart Greenhouse). '
+        'Berikan rekomendasi agronomi spesifik dan presisi untuk budidaya greenhouse dengan parameter berikut:\n'
+        '- Tanaman: $plantType\n'
+        '- Varietas: $plantVariety\n'
+        '- Media Tanam/Tanah: $soilType\n'
+        '$hstText\n'
+        'Format jawaban terstruktur dalam 3 poin praktis, padat, dan ramah petani:\n'
+        '1. 💧 Manajemen Irigasi & Kelembapan Media ($soilType)\n'
+        '2. 🧪 Nutrisi & Parameter pH/EC Khusus ($plantType - $plantVariety)\n'
+        '3. 🛡️ Mitigasi Hama & Penyakit Prioritas\n'
+        'Langsung sajikan 3 poin rekomendasi praktis tanpa basa-basi panjang.';
+
+    final key = apiKey;
+    final candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+    ];
+
+    for (final model in candidateModels) {
+      try {
+        final result = await _callGeminiRestApi(
+          apiKey: key,
+          prompt: prompt,
+          model: model,
+        );
+        if (result != null && result.trim().isNotEmpty) {
+          return result.trim();
+        }
+      } catch (e) {
+        debugPrint('[GeminiService] Greenhouse agronomy error ($model): $e');
+      }
+    }
+
+    return _generateGreenhouseFallbackAdvice(plantType, plantVariety, soilType, hst);
+  }
+
+  static String _generateGreenhouseFallbackAdvice(String plant, String variety, String soil, int? hst) {
+    return '1. 💧 **Manajemen Irigasi & Kelembapan Media ($soil):**\n'
+        'Jaga kelembapan media tanam berkala pada rentang 65-75%. Pada $soil, lakukan penyiraman tetes terkontrol 3-4 kali sehari saat pagi dan sore untuk mencegah genangan air dan stres perakaran.\n\n'
+        '2. 🧪 **Nutrisi & Parameter pH/EC Khusus ($plant - $variety):**\n'
+        'Pertahankan pH media pada 6.0 - 6.8 dengan EC nutrisi 1.8 - 2.2 mS/cm. Berikan kalsium nitrat secara teratur guna memperkuat dinding sel tanaman dan mencegah busuk ujung buah.\n\n'
+        '3. 🛡️ **Mitigasi Hama & Penyakit Prioritas:**\n'
+        'Pasang yellow sticky trap setinggi tajuk tanaman untuk mendeteksi dini serangan kutu kebul atau thrips. Pastikan ventilasi udara lancar untuk menekan risiko infeksi jamur daun.';
+  }
+
+  /// FR-07 & FR-11: Membuat Otomatisasi Jadwal Perawatan 7 Hari (1 Minggu) ke Depan Berbasis Gemini AI
+  /// Memanfaatkan parameter budidaya:
+  /// - jenis tanaman (plantType)
+  /// - varietas tanaman (plantVariety)
+  /// - jenis tanah / media tanam (soilType)
+  /// - umur tanaman / HST
+  /// - data sensor IoT terkini (suhu, kelembapan udara, intensitas cahaya) jika tersambung
+  static Future<List<Map<String, dynamic>>> generateWeeklyScheduleWithAi({
+    required String plantType,
+    required String plantVariety,
+    required String soilType,
+    int? hst,
+    Map<String, double>? iotData,
+    String? greenhouseName,
+  }) async {
+    final hstText = hst != null ? '- Umur Tanaman: Hari ke-$hst (HST)\n' : '';
+    
+    final bool hasIot = iotData != null && (iotData['suhu'] != null || iotData['kelembapan'] != null || iotData['cahaya'] != null);
+    String iotContext = '';
+    if (hasIot) {
+      final suhu = iotData['suhu']?.toStringAsFixed(1) ?? '-';
+      final kelembapan = iotData['kelembapan']?.toStringAsFixed(1) ?? '-';
+      final cahaya = iotData['cahaya']?.toStringAsFixed(0) ?? '-';
+      iotContext = '- Data Sensor IoT Terkini: Suhu $suhu°C, Kelembapan Udara $kelembapan%, Intensitas Cahaya $cahaya lx.\n'
+          '(Wajib perhitungkan data sensor ini: jika suhu tinggi sesuaikan penyiraman dan nutrisi; jika lembap waspada jamur/fungi)';
+    } else {
+      iotContext = '- Sensor IoT: Belum terhubung (Gunakan standar parameter agronomi greenhouse ideal)';
+    }
+
+    final prompt = 'Kamu adalah Ahli Agronomi Presisi dan AI Smart Greenhouse TaniGreen.\n'
+        'Buatlah RENCANA JADWAL PERAWATAN TANAMAN 7 HARI (1 MINGGU KE DEPAN) untuk greenhouse "${greenhouseName ?? "Greenhouse"}" berdasarkan data spesifik berikut:\n'
+        '- Tanaman: $plantType\n'
+        '- Varietas: $plantVariety\n'
+        '- Media Tanam/Tanah: $soilType\n'
+        '$hstText'
+        '$iotContext\n\n'
+        'Susun 7 kegiatan (Hari ke-1 sampai Hari ke-7), 1 kegiatan utama per hari (misal penyiraman nutrisi, pemupukan kalium/kalsium, pruning tunas, pengendalian hama, sanitasi, pemantauan drainase).\n'
+        'Kembalikan HANYA format JSON valid tanpa tanda markdown luar atau teks tambahan, dengan skema array:\n'
+        '[\n'
+        '  {\n'
+        '    "hari": 1,\n'
+        '    "kegiatan": "Nama Kegiatan (misal: Penyiraman Nutrisi & Cek EC Media)",\n'
+        '    "kategori": "Penyiraman",\n'
+        '    "prioritas": "Prioritas",\n'
+        '    "jam": "07:30",\n'
+        '    "catatan": "Panduan teknis spesifik untuk $plantVariety pada $soilType memperhatikan kondisi lingkungan"\n'
+        '  }\n'
+        ']';
+
+    final key = apiKey;
+    final candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
+    ];
+
+    for (final model in candidateModels) {
+      try {
+        final rawResponse = await _callGeminiJsonApi(
+          apiKey: key,
+          prompt: prompt,
+          model: model,
+        );
+
+        if (rawResponse != null && rawResponse.trim().isNotEmpty) {
+          final parsed = _parseWeeklyScheduleJson(rawResponse);
+          if (parsed.isNotEmpty) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        debugPrint('[GeminiService] Schedule generation error ($model): $e');
+      }
+    }
+
+    return _generateFallbackWeeklySchedule(
+      plantType: plantType,
+      plantVariety: plantVariety,
+      soilType: soilType,
+      hst: hst,
+      iotData: iotData,
+      greenhouseName: greenhouseName,
+    );
+  }
+
+  static Future<String?> _callGeminiJsonApi({
+    required String apiKey,
+    required String prompt,
+    required String model,
+  }) async {
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+
+    final body = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
+          ],
+        }
+      ],
+      'generationConfig': {
+        'temperature': 0.2,
+        'maxOutputTokens': 1000,
+      }
+    });
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: body,
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final candidates = data['candidates'] as List?;
+        if (candidates != null && candidates.isNotEmpty) {
+          final parts = candidates[0]['content']?['parts'] as List?;
+          if (parts != null && parts.isNotEmpty) {
+            return parts[0]['text'] as String?;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[GeminiService] JSON API error: $e');
+    }
+    return null;
+  }
+
+  static List<Map<String, dynamic>> _parseWeeklyScheduleJson(String raw) {
+    try {
+      String clean = raw.trim();
+      if (clean.startsWith('```json')) {
+        clean = clean.substring(7);
+      } else if (clean.startsWith('```')) {
+        clean = clean.substring(3);
+      }
+      if (clean.endsWith('```')) {
+        clean = clean.substring(0, clean.length - 3);
+      }
+      clean = clean.trim();
+
+      final firstBracket = clean.indexOf('[');
+      final lastBracket = clean.lastIndexOf(']');
+      if (firstBracket != -1 && lastBracket != -1 && lastBracket > firstBracket) {
+        clean = clean.substring(firstBracket, lastBracket + 1);
+      }
+
+      final decoded = jsonDecode(clean);
+      if (decoded is List) {
+        return decoded.map<Map<String, dynamic>>((item) {
+          final hariVal = item['hari'] ?? item['hari_ke'] ?? item['day'] ?? 1;
+          final kegiatanVal = item['kegiatan'] ??
+              item['nama_kegiatan'] ??
+              item['judul'] ??
+              item['task'] ??
+              item['nama'] ??
+              'Perawatan Tanaman';
+          final kategoriVal = item['kategori'] ?? item['category'] ?? 'Perawatan';
+          final prioritasVal = item['prioritas'] ?? item['priority'] ?? 'Terjadwal';
+          final jamVal = item['jam'] ?? item['waktu'] ?? item['time'] ?? '08:00';
+          final catatanVal = item['catatan'] ??
+              item['deskripsi'] ??
+              item['detail'] ??
+              item['keterangan'] ??
+              item['instruksi'] ??
+              '';
+
+          return {
+            'hari': hariVal is int
+                ? hariVal
+                : int.tryParse(hariVal.toString()) ?? 1,
+            'kegiatan': kegiatanVal.toString(),
+            'kategori': kategoriVal.toString(),
+            'prioritas': prioritasVal.toString(),
+            'jam': jamVal.toString(),
+            'catatan': catatanVal.toString(),
+          };
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('[GeminiService] Failed to parse JSON schedule: $e');
+    }
+    return [];
+  }
+
+  static List<Map<String, dynamic>> _generateFallbackWeeklySchedule({
+    required String plantType,
+    required String plantVariety,
+    required String soilType,
+    int? hst,
+    Map<String, double>? iotData,
+    String? greenhouseName,
+  }) {
+    final bool hasIot = iotData != null && (iotData['suhu'] != null || iotData['kelembapan'] != null);
+    final double suhu = iotData?['suhu'] ?? 28.0;
+    final double kelembapan = iotData?['kelembapan'] ?? 65.0;
+
+    String iotWaterNote = '';
+    String iotFungusNote = '';
+    if (hasIot) {
+      if (suhu >= 31.0) {
+        iotWaterNote = ' (Sensor suhu ${suhu.toStringAsFixed(1)}°C tergolong panas: tingkatkan durasi tetes 15%)';
+      } else {
+        iotWaterNote = ' (Suhu ${suhu.toStringAsFixed(1)}°C: laju transpirasi normal)';
+      }
+      if (kelembapan >= 75.0) {
+        iotFungusNote = ' (Kelembapan ${kelembapan.toStringAsFixed(1)}% tinggi: maksimalkan sirkulasi udara & waspada embun jelaga)';
+      }
+    }
+
+    return [
+      {
+        'hari': 1,
+        'kegiatan': 'Penyiraman Nutrisi & Cek Lembap Media',
+        'kategori': 'Penyiraman',
+        'prioritas': 'Prioritas',
+        'jam': '07:30',
+        'catatan': 'Siram larutan nutrisi dengan EC 1.8-2.2 mS/cm sesuai kapasitas serap $soilType.$iotWaterNote',
+      },
+      {
+        'hari': 2,
+        'kegiatan': 'Inspeksi Hama & Daun Bawah $plantType',
+        'kategori': 'Proteksi Hama',
+        'prioritas': 'Terjadwal',
+        'jam': '08:00',
+        'catatan': 'Periksa koloni thrips atau kutu kebul di bawah daun $plantVariety. Bersihkan perangkap serangga.',
+      },
+      {
+        'hari': 3,
+        'kegiatan': 'Aplikasi Pupuk Kalsium & Kalium',
+        'kategori': 'Pemupukan',
+        'prioritas': 'Prioritas',
+        'jam': '07:00',
+        'catatan': 'Semprot pupuk kalsium larut air untuk memperkuat struktur dinding sel $plantVariety.',
+      },
+      {
+        'hari': 4,
+        'kegiatan': 'Pemeriksaan Aerasi & Drainase Lahan',
+        'kategori': 'Perawatan',
+        'prioritas': 'Terjadwal',
+        'jam': '09:00',
+        'catatan': 'Pastikan perakaran pada media $soilType mendapatkan suplai oksigen yang cukup dan tidak becek.',
+      },
+      {
+        'hari': 5,
+        'kegiatan': 'Pruning Tunas Air & Perapian Sulur',
+        'kategori': 'Perawatan',
+        'prioritas': 'Mendatang',
+        'jam': '08:30',
+        'catatan': 'Potong cabang air aksilar $plantType agar asimilasi fotosintesis terkonsentrasi ke buah/bunga.',
+      },
+      {
+        'hari': 6,
+        'kegiatan': 'Penyemprotan Fungisida Nabati Preventif',
+        'kategori': 'Proteksi Hama',
+        'prioritas': 'Terjadwal',
+        'jam': '16:30',
+        'catatan': 'Semprotkan ekstrak mimba/belerang halus saat sore hari untuk mencegah jamur daun.$iotFungusNote',
+      },
+      {
+        'hari': 7,
+        'kegiatan': 'Evaluasi Mingguan & Pengukuran HST',
+        'kategori': 'Perawatan',
+        'prioritas': 'Mendatang',
+        'jam': '08:00',
+        'catatan': 'Catat perkembangan vigor batang, jumlah helai daun, dan pertambahan tinggi varietas $plantVariety.',
+      },
+    ];
+  }
+
   /// Memanggil REST API Generative Language Google dengan Adaptive Auth Header
   static Future<String?> _callGeminiRestApi({
     required String apiKey,

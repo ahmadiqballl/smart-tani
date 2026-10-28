@@ -1,6 +1,9 @@
+import '../../../core/services/notification_service.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/gemini_services.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../models/greenhouse_model.dart';
 import '../../../services/greenhouse_service.dart';
@@ -28,9 +31,18 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
   late GreenhouseModel _currentGreenhouse;
   bool _isLoading = false;
 
+  // Rekomendasi Agronomi Spesifik dari Google Gemini AI (FR-09)
+  String? _aiAgronomyGuide;
+  bool _isLoadingAiGuide = false;
+
   // Real-time IoT Data dari Firebase Realtime Database
   Map<String, double>? _iotData;
   Timer? _iotTimer;
+
+  // Notifikasi Otomatis Pantauan IoT
+  bool _isIotNotifEnabled = false;
+  int _iotNotifIntervalMinutes = 15;
+  Timer? _iotNotifPeriodicTimer;
 
   // Controller & State untuk Form Pengaturan Awal / Edit
   final _plantTypeController = TextEditingController();
@@ -69,6 +81,67 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
     _currentGreenhouse = widget.greenhouse;
     _populateControllers();
     _startIotPolling();
+    _loadIotNotifPreferences();
+    if (_currentGreenhouse.isConfigured) {
+      _loadAiAgronomyGuide();
+    }
+  }
+
+
+  Future<void> _loadAiAgronomyGuide({bool forceRefresh = false}) async {
+    if (!_currentGreenhouse.isConfigured) return;
+
+    final plant = _currentGreenhouse.plantType ?? '';
+    final variety = _currentGreenhouse.plantVariety ?? '';
+    final soil = _currentGreenhouse.soilType ?? 'Media Standar';
+    if (plant.trim().isEmpty || variety.trim().isEmpty) return;
+
+    int? hst;
+    if (_currentGreenhouse.plantingDate != null) {
+      hst = DateTime.now().difference(_currentGreenhouse.plantingDate!).inDays;
+      if (hst < 0) hst = 0;
+    }
+
+    final cacheKey = 'gemini_agronomy_${_currentGreenhouse.id ?? "gh"}_${plant}_${variety}_$soil';
+
+    if (!forceRefresh) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString(cacheKey);
+        if (cached != null && cached.trim().isNotEmpty) {
+          if (mounted) {
+            setState(() => _aiAgronomyGuide = cached);
+          }
+          return;
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _isLoadingAiGuide = true);
+
+    try {
+      final advice = await GeminiService.getGreenhouseAgronomyAdvice(
+        plantType: plant,
+        plantVariety: variety,
+        soilType: soil,
+        hst: hst,
+      );
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(cacheKey, advice);
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _aiAgronomyGuide = advice;
+          _isLoadingAiGuide = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading AI agronomy guide: $e');
+      if (mounted) setState(() => _isLoadingAiGuide = false);
+    }
   }
 
   void _populateControllers() {
@@ -138,11 +211,13 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
       if (mounted) {
         setState(() {
           _currentGreenhouse = updated;
+          _aiAgronomyGuide = null;
           _iotData = null;
           _offlineRetryCount = 0;
           _isAutoDisconnecting = false;
         });
 
+        _loadAiAgronomyGuide(forceRefresh: true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppTheme.panelElevated,
@@ -970,6 +1045,7 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
   @override
   void dispose() {
     _iotTimer?.cancel();
+    _iotNotifPeriodicTimer?.cancel();
     _plantTypeController.dispose();
     _varietyController.dispose();
     _soilTypeController.dispose();
@@ -1964,7 +2040,9 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
             icon: Icons.wb_sunny_rounded,
             isGood: true,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 12),
+          // Pengaturan Notifikasi Pantauan IoT
+          _buildIotNotificationSettingsCard(),
         ],
 
         // ── Rekomendasi Agronomi Pintar ──
@@ -1983,6 +2061,316 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
         const SizedBox(height: 12),
         _buildActionButtons(context),
       ],
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // PENGATURAN NOTIFIKASI OTOMATIS PANTAUAN IOT
+  // ────────────────────────────────────────────────────────────
+  Future<void> _loadIotNotifPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyPrefix = 'iot_notif_${_currentGreenhouse.id ?? _currentGreenhouse.name}';
+      final isEnabled = prefs.getBool('${keyPrefix}_enabled') ?? false;
+      final interval = prefs.getInt('${keyPrefix}_interval') ?? 15;
+      if (mounted) {
+        setState(() {
+          _isIotNotifEnabled = isEnabled;
+          _iotNotifIntervalMinutes = interval;
+        });
+        if (isEnabled && _currentGreenhouse.hasIotDevice) {
+          _startIotNotifScheduler();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveIotNotifPreferences(bool enabled, int interval) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keyPrefix = 'iot_notif_${_currentGreenhouse.id ?? _currentGreenhouse.name}';
+      await prefs.setBool('${keyPrefix}_enabled', enabled);
+      await prefs.setInt('${keyPrefix}_interval', interval);
+    } catch (_) {}
+  }
+
+  void _toggleIotNotification(bool value) async {
+    setState(() => _isIotNotifEnabled = value);
+    await _saveIotNotifPreferences(value, _iotNotifIntervalMinutes);
+
+    if (value) {
+      _startIotNotifScheduler();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.notifications_active_rounded, color: AppTheme.darkForest),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Notifikasi otomatis IoT diaktifkan (setiap $_iotNotifIntervalMinutes menit)!',
+                    style: const TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.neonLime,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      _stopIotNotifScheduler();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notifikasi otomatis IoT dinonaktifkan.'),
+            backgroundColor: AppTheme.panelElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _changeIotNotifInterval(int interval) async {
+    setState(() => _iotNotifIntervalMinutes = interval);
+    await _saveIotNotifPreferences(_isIotNotifEnabled, interval);
+    if (_isIotNotifEnabled) {
+      _startIotNotifScheduler();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Interval pantauan IoT diperbarui: setiap $interval menit.'),
+            backgroundColor: AppTheme.neonLime,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _startIotNotifScheduler() {
+    _iotNotifPeriodicTimer?.cancel();
+
+    final suhu = _iotData?['suhu'] ?? 28.0;
+    final kelembapan = _iotData?['kelembapan'] ?? 70.0;
+    final cahaya = _iotData?['cahaya'] ?? 500.0;
+
+    NotificationService.instance.schedulePeriodicTelemetryNotifications(
+      greenhouseName: _currentGreenhouse.name,
+      intervalMinutes: _iotNotifIntervalMinutes,
+      suhu: suhu,
+      kelembapanUdara: kelembapan,
+      cahaya: cahaya,
+    );
+
+    _iotNotifPeriodicTimer = Timer.periodic(
+      Duration(minutes: _iotNotifIntervalMinutes),
+      (_) {
+        if (!mounted || !_isIotNotifEnabled || !_currentGreenhouse.hasIotDevice) return;
+        final curSuhu = _iotData?['suhu'] ?? 28.0;
+        final curLembap = _iotData?['kelembapan'] ?? 70.0;
+        final curCahaya = _iotData?['cahaya'] ?? 500.0;
+        NotificationService.instance.showTelemetryNotification(
+          greenhouseName: _currentGreenhouse.name,
+          suhu: curSuhu,
+          kelembapanUdara: curLembap,
+          cahaya: curCahaya,
+        );
+      },
+    );
+  }
+
+  void _stopIotNotifScheduler() {
+    _iotNotifPeriodicTimer?.cancel();
+    _iotNotifPeriodicTimer = null;
+    NotificationService.instance.cancelPeriodicTelemetryNotifications();
+  }
+
+  void _triggerTestIotNotification() {
+    final suhu = _iotData?['suhu'] ?? 27.5;
+    final kelembapan = _iotData?['kelembapan'] ?? 75.0;
+    final cahaya = _iotData?['cahaya'] ?? 450.0;
+
+    NotificationService.instance.showTelemetryNotification(
+      greenhouseName: _currentGreenhouse.name,
+      suhu: suhu,
+      kelembapanUdara: kelembapan,
+      cahaya: cahaya,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppTheme.darkForest),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Notifikasi telemetri IoT berhasil dikirim ke layar HP!',
+                style: TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.neonLime,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildIotNotificationSettingsCard() {
+    final intervals = [5, 10, 15, 30, 60];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 18),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isIotNotifEnabled
+              ? AppTheme.neonLime.withValues(alpha: 0.4)
+              : AppTheme.borderQuiet,
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (_isIotNotifEnabled ? AppTheme.neonLime : AppTheme.textGrey)
+                      .withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.notifications_active_rounded,
+                  color: _isIotNotifEnabled ? AppTheme.neonLime : AppTheme.textGrey,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Notifikasi Otomatis Pantauan IoT',
+                      style: TextStyle(
+                        color: AppTheme.creamWhite,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Peringatan berkala suhu, kelembapan & cahaya',
+                      style: TextStyle(
+                        color: AppTheme.textGrey,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _isIotNotifEnabled,
+                onChanged: _toggleIotNotification,
+                activeThumbColor: AppTheme.neonLime,
+                activeTrackColor: AppTheme.neonLime.withValues(alpha: 0.3),
+              ),
+            ],
+          ),
+          if (_isIotNotifEnabled) ...[
+            const SizedBox(height: 14),
+            const Divider(color: AppTheme.borderQuiet, height: 1),
+            const SizedBox(height: 12),
+            const Text(
+              'Interval Notifikasi Pengingat:',
+              style: TextStyle(
+                color: AppTheme.creamWhite,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: intervals.map((m) {
+                  final isSelected = _iotNotifIntervalMinutes == m;
+                  final label = m == 60 ? '1 Jam' : '$m Menit';
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label),
+                      selected: isSelected,
+                      onSelected: (_) => _changeIotNotifInterval(m),
+                      selectedColor: AppTheme.neonLime,
+                      backgroundColor: const Color(0xFF143B33),
+                      labelStyle: TextStyle(
+                        color: isSelected ? AppTheme.darkForest : AppTheme.creamWhite,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 11.5,
+                      ),
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppTheme.neonLime
+                            : AppTheme.emeraldGreen.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF102E27),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 14, color: AppTheme.neonLime),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Notifikasi akan muncul ke status bar HP setiap $_iotNotifIntervalMinutes menit.',
+                      style: const TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: OutlinedButton.icon(
+                onPressed: _triggerTestIotNotification,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.neonLime,
+                  side: BorderSide(color: AppTheme.neonLime.withValues(alpha: 0.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.cell_tower_rounded, size: 16),
+                label: const Text(
+                  'Uji Notifikasi Popup Sekarang',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -2039,61 +2427,121 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
   }
 
   Widget _buildAgronomyGuideCard(String plant, String variety, String soil) {
-    String guide = 'Pertahankan kelembapan media tanam secara berkala. Berikan nutrisi berimbang NPK sesuai fase vegetatif.';
-    if (plant.toLowerCase().contains('tomat')) {
-      guide = 'Tomat membutuhkan asupan kalsium nitrat untuk mencegah blossom end rot (busuk pantat buah). Pada media $soil, pastikan drainase lancar agar akar tidak busuk.';
-    } else if (plant.toLowerCase().contains('melon')) {
-      guide = 'Melon $variety sangat responsif terhadap pencahayaan tinggi. Jaga kelembapan media $soil stabil dan kurangi penyiraman saat mendekati fase pematangan buah untuk meningkatkan kadar gula (brix).';
-    } else if (plant.toLowerCase().contains('cabai')) {
-      guide = 'Pantau kelembapan tanah agar tidak terlalu basah guna mencegah layu fusarium. Gunakan perangkap kuning untuk mendeteksi kutu kebul atau thrips lebih awal.';
-    } else if (plant.toLowerCase().contains('selada')) {
-      guide = 'Selada sensitif terhadap suhu panas (bolting). Jaga sirkulasi udara dan pertahankan suhu di bawah 26°C dengan mist blower.';
-    }
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.panel,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.borderQuiet),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.accent.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.psychology_outlined, color: AppTheme.accent, size: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.accent, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Catatan Budidaya Presisi',
+                      style: TextStyle(
+                        color: AppTheme.ink,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Rekomendasi Berbasis Google Gemini AI',
+                      style: TextStyle(
+                        color: AppTheme.accent,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: _isLoadingAiGuide ? null : () => _loadAiAgronomyGuide(forceRefresh: true),
+                tooltip: 'Perbarui rekomendasi AI',
+                icon: _isLoadingAiGuide
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+                      )
+                    : const Icon(Icons.refresh_rounded, color: AppTheme.accent, size: 20),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+          const SizedBox(height: 12),
+          const Divider(color: AppTheme.borderQuiet, height: 1),
+          const SizedBox(height: 12),
+          if (_isLoadingAiGuide)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Gemini AI sedang meracik panduan budidaya untuk $plant ($variety) pada media $soil...',
+                      style: const TextStyle(
+                        color: AppTheme.inkSecondary,
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_aiAgronomyGuide != null && _aiAgronomyGuide!.trim().isNotEmpty)
+            SelectableText(
+              _aiAgronomyGuide!,
+              style: const TextStyle(
+                color: AppTheme.ink,
+                fontSize: 12.5,
+                height: 1.5,
+              ),
+            )
+          else
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Catatan Budidaya Presisi',
-                  style: TextStyle(
-                    color: AppTheme.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
                 Text(
-                  guide,
-                  style: const TextStyle(
-                    color: AppTheme.inkSecondary,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
+                  'Pertahankan kelembapan media tanam berkala dan sesuaikan nutrisi $plant ($variety) pada $soil.',
+                  style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => _loadAiAgronomyGuide(forceRefresh: true),
+                  icon: const Icon(Icons.psychology_rounded, size: 16, color: AppTheme.accent),
+                  label: const Text('Muat Analisis Gemini AI', style: TextStyle(color: AppTheme.accent, fontSize: 12)),
                 ),
               ],
             ),
-          ),
         ],
       ),
     );
@@ -2115,7 +2563,12 @@ class _GreenhouseDetailPageState extends State<GreenhouseDetailPage> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const JadwalTanamPage()),
+              MaterialPageRoute(
+                builder: (_) => JadwalTanamPage(
+                  greenhouse: _currentGreenhouse,
+                  iotData: _iotData,
+                ),
+              ),
             );
           },
         ),

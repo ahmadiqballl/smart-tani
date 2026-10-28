@@ -165,7 +165,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
       return;
     }
     setState(() => _isSearching = true);
-    final results = await context.read<GreenhouseProvider>().searchPlaces(query);
+    final results =
+        await context.read<GreenhouseProvider>().searchPlaces(query);
     if (mounted) {
       setState(() {
         _searchResults = results;
@@ -216,19 +217,22 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
         SnackBar(
           content: const Row(
             children: [
-              Icon(Icons.notifications_active_rounded, color: AppTheme.darkForest),
+              Icon(Icons.notifications_active_rounded,
+                  color: AppTheme.darkForest),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Notifikasi pengingat suhu (FR-12) berhasil dikirimkan ke status bar perangkat!',
-                  style: TextStyle(color: AppTheme.darkForest, fontWeight: FontWeight.w600),
+                  'Notifikasi pengingat suhu berhasil dikirimkan ke status bar perangkat!',
+                  style: TextStyle(
+                      color: AppTheme.darkForest, fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
           backgroundColor: AppTheme.neonLime,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -282,7 +286,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: AppTheme.textGrey),
+                    icon: const Icon(Icons.close_rounded,
+                        color: AppTheme.textGrey),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
@@ -298,8 +303,12 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                   labelColor: AppTheme.neonLime,
                   unselectedLabelColor: AppTheme.textGrey,
                   tabs: [
-                    Tab(icon: Icon(Icons.eco_rounded), text: 'Rekomendasi Buah'),
-                    Tab(icon: Icon(Icons.sensors_rounded), text: 'Rekomendasi IoT'),
+                    Tab(
+                        icon: Icon(Icons.eco_rounded),
+                        text: 'Rekomendasi Buah'),
+                    Tab(
+                        icon: Icon(Icons.sensors_rounded),
+                        text: 'Rekomendasi IoT'),
                   ],
                 ),
               ),
@@ -319,14 +328,16 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                             color: AppTheme.cardSurface,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: AppTheme.emeraldGreen.withValues(alpha: 0.35),
+                              color:
+                                  AppTheme.emeraldGreen.withValues(alpha: 0.35),
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -339,9 +350,11 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: AppTheme.neonLime.withValues(alpha: 0.15),
+                                      color: AppTheme.neonLime
+                                          .withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -368,7 +381,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                               Text(
                                 f.alasanRekomendasi,
                                 style: TextStyle(
-                                  color: AppTheme.pastelLime.withValues(alpha: 0.9),
+                                  color: AppTheme.pastelLime
+                                      .withValues(alpha: 0.9),
                                   fontSize: 12,
                                   height: 1.35,
                                 ),
@@ -376,19 +390,23 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.timer_rounded, size: 14, color: Color(0xFF00E5FF)),
+                                  const Icon(Icons.timer_rounded,
+                                      size: 14, color: Color(0xFF00E5FF)),
                                   const SizedBox(width: 4),
                                   Text(
                                     f.estimasiPanen,
-                                    style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11),
+                                    style: const TextStyle(
+                                        color: Color(0xFF00E5FF), fontSize: 11),
                                   ),
                                   const SizedBox(width: 12),
-                                  const Icon(Icons.crop_free_rounded, size: 14, color: Colors.amber),
+                                  const Icon(Icons.crop_free_rounded,
+                                      size: 14, color: Colors.amber),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
                                       f.kebutuhanLuas,
-                                      style: const TextStyle(color: Colors.amber, fontSize: 11),
+                                      style: const TextStyle(
+                                          color: Colors.amber, fontSize: 11),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -413,14 +431,16 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                             color: AppTheme.cardSurface,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: AppTheme.emeraldGreen.withValues(alpha: 0.35),
+                              color:
+                                  AppTheme.emeraldGreen.withValues(alpha: 0.35),
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -433,9 +453,11 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                                      color: const Color(0xFF00E5FF)
+                                          .withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -453,7 +475,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                               Text(
                                 iot.fungsiUtama,
                                 style: TextStyle(
-                                  color: AppTheme.pastelLime.withValues(alpha: 0.9),
+                                  color: AppTheme.pastelLime
+                                      .withValues(alpha: 0.9),
                                   fontSize: 12,
                                   height: 1.35,
                                 ),
@@ -467,7 +490,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.tune_rounded, size: 14, color: AppTheme.neonLime),
+                                    const Icon(Icons.tune_rounded,
+                                        size: 14, color: AppTheme.neonLime),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
@@ -515,7 +539,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
           ),
           title: const Text(
             'Tambah Titik Greenhouse (LBS)',
-            style: TextStyle(color: AppTheme.creamWhite, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                color: AppTheme.creamWhite, fontWeight: FontWeight.w700),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -570,7 +595,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                 const SizedBox(height: 14),
                 Text(
                   'Alamat Geocoding:\n$_currentAddress',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textGrey),
+                  style:
+                      const TextStyle(fontSize: 11, color: AppTheme.textGrey),
                 ),
               ],
             ),
@@ -578,7 +604,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal', style: TextStyle(color: AppTheme.textGrey)),
+              child: const Text('Batal',
+                  style: TextStyle(color: AppTheme.textGrey)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -603,7 +630,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                 backgroundColor: AppTheme.neonLime,
                 foregroundColor: AppTheme.darkForest,
               ),
-              child: const Text('Simpan Lahan', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text('Simpan Lahan',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -636,10 +664,12 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                         padding: const EdgeInsets.all(8),
                         margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                          color:
+                              const Color(0xFF00E5FF).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                            color:
+                                const Color(0xFF00E5FF).withValues(alpha: 0.4),
                           ),
                         ),
                         child: const Icon(
@@ -674,36 +704,46 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
 
               // Search Location Bar di atas Peta
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppTheme.inputFill,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.4)),
+                    border: Border.all(
+                        color: AppTheme.emeraldGreen.withValues(alpha: 0.4)),
                   ),
                   child: TextField(
                     controller: _searchMapCtrl,
-                    style: const TextStyle(color: AppTheme.creamWhite, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppTheme.creamWhite, fontSize: 13),
                     cursorColor: AppTheme.neonLime,
                     onSubmitted: _handleSearchLocation,
                     decoration: InputDecoration(
-                      hintText: 'Cari lokasi (contoh: Sleman, Bantul, Lembang)...',
-                      hintStyle: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
-                      prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.neonLime, size: 20),
+                      hintText:
+                          'Cari lokasi (contoh: Sleman, Bantul, Lembang)...',
+                      hintStyle: const TextStyle(
+                          color: AppTheme.textGrey, fontSize: 12),
+                      prefixIcon: const Icon(Icons.search_rounded,
+                          color: AppTheme.neonLime, size: 20),
                       suffixIcon: _isSearching
                           ? const Padding(
                               padding: EdgeInsets.all(12),
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.neonLime),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: AppTheme.neonLime),
                               ),
                             )
                           : IconButton(
-                              icon: const Icon(Icons.arrow_forward_rounded, color: AppTheme.neonLime, size: 18),
-                              onPressed: () => _handleSearchLocation(_searchMapCtrl.text),
+                              icon: const Icon(Icons.arrow_forward_rounded,
+                                  color: AppTheme.neonLime, size: 18),
+                              onPressed: () =>
+                                  _handleSearchLocation(_searchMapCtrl.text),
                             ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       border: InputBorder.none,
                     ),
                   ),
@@ -713,26 +753,32 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
               // Hasil Pencarian Dropdown List
               if (_searchResults.isNotEmpty)
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(maxHeight: 180),
                   decoration: BoxDecoration(
                     color: AppTheme.cardSurface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.neonLime.withValues(alpha: 0.5)),
+                    border: Border.all(
+                        color: AppTheme.neonLime.withValues(alpha: 0.5)),
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: _searchResults.length,
-                    separatorBuilder: (_, __) => Divider(color: AppTheme.emeraldGreen.withValues(alpha: 0.2), height: 1),
+                    separatorBuilder: (_, __) => Divider(
+                        color: AppTheme.emeraldGreen.withValues(alpha: 0.2),
+                        height: 1),
                     itemBuilder: (ctx, idx) {
                       final item = _searchResults[idx];
                       return ListTile(
                         dense: true,
-                        leading: const Icon(Icons.location_city_rounded, color: AppTheme.neonLime, size: 18),
+                        leading: const Icon(Icons.location_city_rounded,
+                            color: AppTheme.neonLime, size: 18),
                         title: Text(
                           item['display_name'] as String,
-                          style: const TextStyle(color: AppTheme.creamWhite, fontSize: 12),
+                          style: const TextStyle(
+                              color: AppTheme.creamWhite, fontSize: 12),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -766,8 +812,13 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.tanigreen.mobile',
+                          errorTileCallback: (tile, error, stackTrace) {
+                            debugPrint(
+                                'Peta offline / Tile load error: $error');
+                          },
                         ),
                         MarkerLayer(
                           markers: [
@@ -785,15 +836,18 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                       height: 44,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: const Color(0xFF2196F3).withValues(alpha: 0.25),
+                                        color: const Color(0xFF2196F3)
+                                            .withValues(alpha: 0.25),
                                         border: Border.all(
-                                          color: const Color(0xFF2196F3).withValues(alpha: 0.6),
+                                          color: const Color(0xFF2196F3)
+                                              .withValues(alpha: 0.6),
                                           width: 1.5,
                                         ),
                                       ),
                                     ),
                                     Transform.rotate(
-                                      angle: (_compassHeading * (math.pi / 180)),
+                                      angle:
+                                          (_compassHeading * (math.pi / 180)),
                                       child: Container(
                                         width: 32,
                                         height: 32,
@@ -811,8 +865,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: const Color(0xFF1E88E5),
-                                        border: Border.all(color: Colors.white, width: 2.5),
-
+                                        border: Border.all(
+                                            color: Colors.white, width: 2.5),
                                       ),
                                     ),
                                   ],
@@ -850,7 +904,8 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                             horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
                                           color: AppTheme.darkForest,
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
                                           border: Border.all(
                                             color: _getMarkerColor(gh.status),
                                           ),
@@ -886,10 +941,31 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                       right: 12,
                       child: GestureDetector(
                         onTap: () {
-                          // Tap kompas untuk putar sudut simulasi arah mata angin
+                          // Tap kompas otomatis mengunci/menghadap utara
+                          _mapController.rotate(0.0);
                           setState(() {
-                            _updateCompassHeading(_compassHeading + 45.0);
+                            _updateCompassHeading(0.0);
                           });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Row(
+                                children: [
+                                  Icon(Icons.explore_rounded,
+                                      color: AppTheme.neonLime, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Peta diarahkan kembali ke Utara (0°)',
+                                    style: TextStyle(
+                                        color: AppTheme.creamWhite,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: AppTheme.darkForest,
+                              duration: Duration(seconds: 1),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
                         },
                         child: Container(
                           padding: const EdgeInsets.all(10),
@@ -900,7 +976,6 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                               color: AppTheme.neonLime.withValues(alpha: 0.5),
                               width: 1.2,
                             ),
-
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -923,8 +998,11 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                 ),
                               ),
                               const Text(
-                                'Sensor Otomatis (Utara)',
-                                style: TextStyle(color: AppTheme.textGrey, fontSize: 8.5),
+                                'Ketuk: Hadap Utara (0°)',
+                                style: TextStyle(
+                                    color: AppTheme.neonLime,
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),
@@ -938,8 +1016,12 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                       right: 16,
                       child: FloatingActionButton.small(
                         heroTag: 'recenter_gps_gojek',
-                        backgroundColor: _isLiveTrackingFollow ? AppTheme.neonLime : AppTheme.cardSurface,
-                        foregroundColor: _isLiveTrackingFollow ? AppTheme.darkForest : AppTheme.creamWhite,
+                        backgroundColor: _isLiveTrackingFollow
+                            ? AppTheme.neonLime
+                            : AppTheme.cardSurface,
+                        foregroundColor: _isLiveTrackingFollow
+                            ? AppTheme.darkForest
+                            : AppTheme.creamWhite,
                         elevation: 4,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -955,14 +1037,17 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                           setState(() => _isLiveTrackingFollow = true);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('📍 Mode Ikuti Pengguna Aktif (Live Tracking Gojek)'),
+                              content: Text(
+                                  '📍 Mode Ikuti Pengguna Aktif (Live Tracking Gojek)'),
                               duration: Duration(seconds: 1),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         },
                         child: Icon(
-                          _isLiveTrackingFollow ? Icons.my_location_rounded : Icons.location_searching_rounded,
+                          _isLiveTrackingFollow
+                              ? Icons.my_location_rounded
+                              : Icons.location_searching_rounded,
                           size: 20,
                         ),
                       ),
@@ -973,15 +1058,19 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                       top: 12,
                       left: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: AppTheme.darkForest.withValues(alpha: 0.85),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.4)),
+                          border: Border.all(
+                              color:
+                                  AppTheme.emeraldGreen.withValues(alpha: 0.4)),
                         ),
                         child: const Row(
                           children: [
-                            Icon(Icons.wb_sunny_rounded, color: Colors.amber, size: 14),
+                            Icon(Icons.wb_sunny_rounded,
+                                color: Colors.amber, size: 14),
                             SizedBox(width: 6),
                             Text(
                               'Orientasi Ideal: Timur-Barat',
@@ -1010,7 +1099,6 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                             color: AppTheme.emeraldGreen.withValues(alpha: 0.5),
                             width: 1.2,
                           ),
-
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -1019,43 +1107,55 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.place_rounded,
-                                      color: AppTheme.neonLime,
-                                      size: 16,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Titik Lahan Terpilih:',
-                                      style: TextStyle(
-                                        color: AppTheme.creamWhite,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12.5,
+                                const Flexible(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.place_rounded,
+                                        color: AppTheme.neonLime,
+                                        size: 16,
                                       ),
-                                    ),
-                                  ],
+                                      SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Titik Lahan Terpilih:',
+                                          style: TextStyle(
+                                            color: AppTheme.creamWhite,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                                const SizedBox(width: 8),
                                 // Koordinat Badge
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: AppTheme.darkForest,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     '${_selectedPoint.latitude.toStringAsFixed(4)}, ${_selectedPoint.longitude.toStringAsFixed(4)}',
-                                    style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10),
+                                    style: const TextStyle(
+                                        color: Color(0xFF00E5FF), fontSize: 10),
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _isLoadingLocation ? 'Mengambil koordinat GPS...' : _currentAddress,
+                              _isLoadingLocation
+                                  ? 'Mengambil koordinat GPS...'
+                                  : _currentAddress,
                               style: TextStyle(
-                                color: AppTheme.pastelLime.withValues(alpha: 0.85),
+                                color:
+                                    AppTheme.pastelLime.withValues(alpha: 0.85),
                                 fontSize: 11.5,
                               ),
                               maxLines: 2,
@@ -1069,26 +1169,36 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                   child: SizedBox(
                                     height: 42,
                                     child: OutlinedButton.icon(
-                                      onPressed: _showRecommendationsBottomSheet,
+                                      onPressed:
+                                          _showRecommendationsBottomSheet,
                                       style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6),
                                         foregroundColor: AppTheme.neonLime,
-                                        side: const BorderSide(color: AppTheme.neonLime),
+                                        side: const BorderSide(
+                                            color: AppTheme.neonLime),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                       ),
-                                      icon: const Icon(Icons.tips_and_updates_rounded, size: 16),
-                                      label: const Text(
-                                        'Rekomendasi Buah & IoT',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 11.5,
+                                      icon: const Icon(
+                                          Icons.tips_and_updates_rounded,
+                                          size: 16),
+                                      label: const FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          'Rekomendasi & IoT',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 11.5,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 // Tombol Tambah Lahan
                                 Expanded(
                                   child: SizedBox(
@@ -1096,18 +1206,26 @@ class _GreenhouseMapPageState extends State<GreenhouseMapPage> {
                                     child: ElevatedButton.icon(
                                       onPressed: _showAddDialog,
                                       style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6),
                                         backgroundColor: AppTheme.neonLime,
                                         foregroundColor: AppTheme.darkForest,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                       ),
-                                      icon: const Icon(Icons.add_business_rounded, size: 16),
-                                      label: const Text(
-                                        'Simpan Lahan',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
+                                      icon: const Icon(
+                                          Icons.add_business_rounded,
+                                          size: 16),
+                                      label: const FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          'Simpan Lahan',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12,
+                                          ),
                                         ),
                                       ),
                                     ),

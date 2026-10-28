@@ -466,7 +466,7 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                                           color: AppTheme.neonLime, size: 20),
                                       SizedBox(width: 8),
                                       Text(
-                                        'Valuasi & Potensi Ekspor (FR-06)',
+                                        'Valuasi & Potensi Ekspor',
                                         style: TextStyle(
                                           color: AppTheme.creamWhite,
                                           fontWeight: FontWeight.w800,
@@ -793,7 +793,7 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text(
-                                'Status Sensor IoT Terkini (FR-08)',
+                                'Status Sensor IoT Terkini',
                                 style: TextStyle(
                                   color: AppTheme.creamWhite,
                                   fontWeight: FontWeight.w800,
@@ -934,7 +934,7 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                          'Notifikasi pengingat suhu (FR-12) berhasil dikirimkan ke status bar!'),
+                                          'Notifikasi pengingat suhu berhasil dikirimkan ke status bar!'),
                                       backgroundColor: AppTheme.neonLime,
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -953,7 +953,7 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                                   Icons.notifications_active_rounded,
                                   size: 18),
                               label: const Text(
-                                'Kirim Pengingat Notifikasi Suhu Sekarang (FR-12)',
+                                'Kirim Pengingat Notifikasi Suhu Sekarang',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w700, fontSize: 12),
                               ),
@@ -1067,7 +1067,7 @@ class _IotMonitoringPageState extends State<IotMonitoringPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Riwayat Log Sensor (FR-07)',
+                          'Riwayat Log Sensor',
                           style: TextStyle(
                             color: AppTheme.creamWhite,
                             fontWeight: FontWeight.w800,

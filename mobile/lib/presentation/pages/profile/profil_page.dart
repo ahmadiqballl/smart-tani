@@ -1,14 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/local_db/database_helper.dart';
+import '../../../models/greenhouse_model.dart';
+import '../../../services/greenhouse_service.dart';
+import '../../../views/add_greenhouse_sheet.dart';
 import '../../providers/auth_providers.dart';
 import '../../widgets/smart_tani_logo.dart';
 import '../auth/login_page.dart';
 import '../blockchain/blockchain_page.dart';
-import '../greenhouse/greenhouse_map_page.dart';
+import '../greenhouse/greenhouse_accumulation_map_page.dart';
+import '../greenhouse/greenhouse_detail_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,7 +24,10 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final ImagePicker _picker = ImagePicker();
-  List<Map<String, dynamic>> _userGreenhouses = [];
+  final GreenhouseService _greenhouseService = GreenhouseService();
+  final MapController _miniMapController = MapController();
+
+  List<GreenhouseModel> _userGreenhouses = [];
   bool _isLoadingGh = true;
 
   @override
@@ -29,19 +37,100 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUserGreenhouses() async {
-    final auth = context.read<AuthProvider>();
-    final user = auth.currentUser;
-    if (user?.id != null) {
-      final list = await DatabaseHelper.instance.getGreenhousesByUser(user!.id!);
+    setState(() => _isLoadingGh = true);
+    try {
+      final list = await _greenhouseService.fetchGreenhouses();
       if (mounted) {
         setState(() {
           _userGreenhouses = list;
           _isLoadingGh = false;
         });
       }
-    } else {
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoadingGh = false);
+      }
+    }
+  }
+
+  double get _totalArea =>
+      _userGreenhouses.fold<double>(0.0, (acc, gh) => acc + gh.area);
+
+  LatLng get _centerPoint {
+    if (_userGreenhouses.isEmpty) return const LatLng(-7.7828, 110.3670);
+    double latSum = 0;
+    double lngSum = 0;
+    int count = 0;
+    for (final gh in _userGreenhouses) {
+      if (gh.latitude != 0.0 && gh.longitude != 0.0) {
+        latSum += gh.latitude;
+        lngSum += gh.longitude;
+        count++;
+      }
+    }
+    if (count == 0) return const LatLng(-7.7828, 110.3670);
+    return LatLng(latSum / count, lngSum / count);
+  }
+
+  Future<void> _confirmDeleteGreenhouse(GreenhouseModel gh) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.panelElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppTheme.statusAlert, size: 24),
+            SizedBox(width: 10),
+            Text('Hapus Greenhouse?', style: TextStyle(color: AppTheme.ink, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "${gh.name}"?\nData greenhouse, konfigurasi budidaya, dan sensor IoT akan dihapus permanen.',
+          style: const TextStyle(color: AppTheme.inkSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: AppTheme.inkTertiary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.statusAlert,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && gh.id != null) {
+      try {
+        await _greenhouseService.deleteGreenhouse(gh.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppTheme.panelElevated,
+              content: Text(
+                'Greenhouse "${gh.name}" berhasil dihapus.',
+                style: const TextStyle(color: AppTheme.ink),
+              ),
+            ),
+          );
+          _loadUserGreenhouses();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal menghapus greenhouse: $e'),
+              backgroundColor: AppTheme.statusAlert,
+            ),
+          );
+        }
       }
     }
   }
@@ -222,7 +311,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         Text(
-                          'Identitas Petani & Manajemen Greenhouse (FR-05)',
+                          'Identitas Petani & Manajemen Greenhouse',
                           style: TextStyle(
                             color: AppTheme.pastelLime.withValues(alpha: 0.75),
                             fontSize: 11.5,
@@ -443,7 +532,230 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 18),
 
-                      // ── DAFTAR GREENHOUSE MILIK PENGGUNA (FR-05) ──
+                      // ── PETA AKUMULASI GREENHOUSE ──
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardSurface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppTheme.emeraldGreen.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.map_rounded,
+                                        color: AppTheme.neonLime, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Peta Akumulasi Greenhouse',
+                                      style: TextStyle(
+                                        color: AppTheme.creamWhite,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => GreenhouseAccumulationMapPage(
+                                          initialGreenhouses: _userGreenhouses,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.fullscreen_rounded,
+                                      size: 16, color: AppTheme.neonLime),
+                                  label: const Text(
+                                    'Layar Penuh',
+                                    style: TextStyle(
+                                      color: AppTheme.neonLime,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Ringkasan Akumulasi Lahan
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.darkForest,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppTheme.emeraldGreen.withValues(alpha: 0.25),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Total Unit',
+                                          style: TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${_userGreenhouses.length} Unit',
+                                          style: const TextStyle(
+                                            color: AppTheme.neonLime,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.darkForest,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppTheme.emeraldGreen.withValues(alpha: 0.25),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Akumulasi Luas',
+                                          style: TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${_totalArea.toStringAsFixed(0)} m²',
+                                          style: const TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Mini Interactive Map Preview
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: SizedBox(
+                                height: 160,
+                                width: double.infinity,
+                                child: Stack(
+                                  children: [
+                                    FlutterMap(
+                                      mapController: _miniMapController,
+                                      options: MapOptions(
+                                        initialCenter: _centerPoint,
+                                        initialZoom: 13.0,
+                                        interactionOptions: const InteractionOptions(
+                                          flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                                        ),
+                                      ),
+                                      children: [
+                                        TileLayer(
+                                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                          userAgentPackageName: 'com.tanigreen.mobile',
+                                        ),
+                                        MarkerLayer(
+                                          markers: _userGreenhouses.map((gh) {
+                                            final lat = gh.latitude != 0.0 ? gh.latitude : -7.7828;
+                                            final lng = gh.longitude != 0.0 ? gh.longitude : 110.3670;
+                                            return Marker(
+                                              point: LatLng(lat, lng),
+                                              width: 32,
+                                              height: 32,
+                                              child: const Icon(
+                                                Icons.location_on_rounded,
+                                                color: AppTheme.neonLime,
+                                                size: 30,
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                    ),
+                                    Positioned(
+                                      bottom: 8,
+                                      right: 8,
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => GreenhouseAccumulationMapPage(
+                                                  initialGreenhouses: _userGreenhouses,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.darkForest.withValues(alpha: 0.9),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: AppTheme.neonLime.withValues(alpha: 0.6)),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.open_in_new_rounded, size: 13, color: AppTheme.neonLime),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'Buka Peta Detail',
+                                                  style: TextStyle(
+                                                    color: AppTheme.creamWhite,
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // ── DAFTAR GREENHOUSE MILIK PENGGUNA ──
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(18),
@@ -475,27 +787,36 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ),
                                   ],
                                 ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => const GreenhouseMapPage()),
-                                    );
-                                  },
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: const Text(
-                                    'Peta GPS →',
-                                    style: TextStyle(
-                                      color: AppTheme.neonLime,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.refresh_rounded, size: 18, color: AppTheme.textGrey),
+                                      tooltip: 'Segarkan data',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: _loadUserGreenhouses,
                                     ),
-                                  ),
+                                    const SizedBox(width: 4),
+                                    ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final result = await AddGreenhouseSheet.show(context);
+                                        if (result == true) {
+                                          _loadUserGreenhouses();
+                                        }
+                                      },
+                                      icon: const Icon(Icons.add_rounded, size: 14),
+                                      label: const Text('Tambah'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.neonLime,
+                                        foregroundColor: AppTheme.darkForest,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -503,7 +824,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (_isLoadingGh)
                               const Center(
                                 child: Padding(
-                                  padding: EdgeInsets.all(12),
+                                  padding: EdgeInsets.all(16),
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: AppTheme.neonLime,
@@ -512,22 +833,27 @@ class _ProfilePageState extends State<ProfilePage> {
                               )
                             else if (_userGreenhouses.isEmpty)
                               Container(
-                                padding: const EdgeInsets.all(14),
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: AppTheme.darkForest,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Row(
+                                child: const Column(
                                   children: [
                                     Icon(Icons.info_outline_rounded,
-                                        color: AppTheme.textGrey, size: 18),
-                                    SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Belum ada data greenhouse terdaftar.',
-                                        style: TextStyle(
-                                            color: AppTheme.textGrey, fontSize: 12),
-                                      ),
+                                        color: AppTheme.textGrey, size: 24),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Belum ada greenhouse terdaftar.',
+                                      style: TextStyle(
+                                          color: AppTheme.creamWhite, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Tekan tombol "+ Tambah" di atas untuk mendaftarkan unit greenhouse pertama Anda.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: AppTheme.textGrey, fontSize: 11),
                                     ),
                                   ],
                                 ),
@@ -538,79 +864,112 @@ class _ProfilePageState extends State<ProfilePage> {
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _userGreenhouses.length,
                                 separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 10),
                                 itemBuilder: (ctx, idx) {
                                   final gh = _userGreenhouses[idx];
-                                  final nama = gh['nama_greenhouse'] ?? 'Greenhouse #${gh['id']}';
-                                  final alamat = gh['alamat'] ?? 'Sleman, D.I. Yogyakarta';
-                                  final luas = gh['luas'] != null ? '${gh['luas']} m²' : '150 m²';
-                                  final status = gh['status'] ?? 'Optimal';
+                                  final variety = gh.plantVariety?.isNotEmpty == true
+                                      ? gh.plantVariety!
+                                      : (gh.plantType?.isNotEmpty == true ? gh.plantType! : 'Belum Dikonfigurasi');
 
-                                  return Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.darkForest,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: AppTheme.emeraldGreen.withValues(alpha: 0.3),
+                                  return InkWell(
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => GreenhouseDetailPage(greenhouse: gh),
+                                        ),
+                                      );
+                                      _loadUserGreenhouses();
+                                    },
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.darkForest,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: AppTheme.emeraldGreen.withValues(alpha: 0.35),
+                                        ),
                                       ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.neonLime.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: const Icon(
-                                            Icons.roofing_rounded,
-                                            color: AppTheme.neonLime,
-                                            size: 18,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                nama,
-                                                style: const TextStyle(
-                                                  color: AppTheme.creamWhite,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                '$alamat • Luas $luas',
-                                                style: const TextStyle(
-                                                  color: AppTheme.textGrey,
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF2ECC71).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            status,
-                                            style: const TextStyle(
-                                              color: Color(0xFF2ECC71),
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w700,
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.neonLime.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.roofing_rounded,
+                                              color: AppTheme.neonLime,
+                                              size: 20,
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  gh.name,
+                                                  style: const TextStyle(
+                                                    color: AppTheme.creamWhite,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  'Tanaman: $variety • Luas: ${gh.area.toStringAsFixed(0)} m²',
+                                                  style: const TextStyle(
+                                                    color: AppTheme.textGrey,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      (gh.iotDeviceId != null && gh.iotDeviceId!.isNotEmpty)
+                                                          ? Icons.wifi_rounded
+                                                          : Icons.wifi_off_rounded,
+                                                      size: 12,
+                                                      color: (gh.iotDeviceId != null && gh.iotDeviceId!.isNotEmpty)
+                                                          ? const Color(0xFF2ECC71)
+                                                          : Colors.orange,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      (gh.iotDeviceId != null && gh.iotDeviceId!.isNotEmpty)
+                                                          ? 'IoT: ${gh.iotDeviceId}'
+                                                          : 'IoT Belum Terhubung',
+                                                      style: TextStyle(
+                                                        color: (gh.iotDeviceId != null && gh.iotDeviceId!.isNotEmpty)
+                                                            ? const Color(0xFF2ECC71)
+                                                            : Colors.orange,
+                                                        fontSize: 10.5,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline_rounded,
+                                                color: Color(0xFFFF5252), size: 20),
+                                            tooltip: 'Hapus Greenhouse',
+                                            onPressed: () => _confirmDeleteGreenhouse(gh),
+                                          ),
+                                          const Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            size: 14,
+                                            color: AppTheme.textGrey,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   );
                                 },
@@ -654,7 +1013,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                       ),
                                       Text(
-                                        'Login cepat sidik jari / Face Unlock (FR-02)',
+                                        'Login cepat sidik jari / Face Unlock',
                                         style: TextStyle(
                                           color: AppTheme.textGrey,
                                           fontSize: 11,
@@ -718,7 +1077,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                       ),
                                       Text(
-                                        'Salt kustom + permutasi acak lokal (FR-01)',
+                                        'Salt kustom + permutasi acak lokal',
                                         style: TextStyle(
                                           color: AppTheme.textGrey,
                                           fontSize: 11,

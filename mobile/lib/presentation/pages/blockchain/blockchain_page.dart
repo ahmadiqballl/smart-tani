@@ -482,7 +482,7 @@ class _BlockchainPageState extends State<BlockchainPage> {
             children: [
               CustomSubAppBar(
                 title: 'Paspor Panen & Catatan Tersegel',
-                subtitle: 'Riwayat Perawatan Anti-Manipulasi (Blockchain FR-13)',
+                subtitle: 'Riwayat Perawatan Anti-Manipulasi (Blockchain Traceability)',
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
